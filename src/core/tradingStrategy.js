@@ -129,6 +129,52 @@ class TradingStrategy {
     // 判断是否达到止盈条件
     return priceIncrease >= takeProfitPercentage;
   }
+
+  /**
+   * 检查是否应该快速重启（用于高频交易）
+   * @param {number} currentPrice - 当前价格
+   * @param {number} averagePrice - 平均买入价格
+   * @param {number} takeProfitPercentage - 止盈百分比
+   * @returns {boolean} 是否应该快速重启
+   */
+  shouldQuickRestart(currentPrice, averagePrice, takeProfitPercentage) {
+    // 如果达到止盈条件，应该快速重启
+    if (this.isTakeProfitTriggered(currentPrice, averagePrice, takeProfitPercentage)) {
+      return true;
+    }
+    
+    // 如果没有持仓，也应该考虑重启
+    if (!averagePrice || averagePrice <= 0) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * 计算高频交易的最优参数
+   * @param {number} currentPrice - 当前价格
+   * @param {Object} config - 配置对象
+   * @returns {Object} 优化后的参数
+   */
+  calculateOptimalParameters(currentPrice, config) {
+    // 基于当前价格和市场条件调整参数
+    const optimized = {
+      maxDropPercentage: config.trading.maxDropPercentage,
+      takeProfitPercentage: config.trading.takeProfitPercentage,
+      orderCount: config.trading.orderCount,
+      totalAmount: config.trading.totalAmount
+    };
+    
+    // 如果是高频模式，使用更小的参数
+    if (config.advanced?.quickRestartAfterTakeProfit) {
+      optimized.maxDropPercentage = Math.min(optimized.maxDropPercentage, 1.5);
+      optimized.takeProfitPercentage = Math.min(optimized.takeProfitPercentage, 0.1);
+      optimized.orderCount = Math.min(optimized.orderCount, 5);
+    }
+    
+    return optimized;
+  }
   
   /**
    * 计算最优卖出价格
