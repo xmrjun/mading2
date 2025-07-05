@@ -2,124 +2,179 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * 配置加载器类 - 负责加载和验证配置
+ * 配置加载器 - 支持单策略和双策略配置
  */
 class ConfigLoader {
   /**
-   * 加载配置文件
-   * @param {string} configPath - 配置文件路径，默认为当前工作目录下的backpack_trading_config.json
-   * @returns {Object} 配置对象
+   * 自动检测并加载配置文件
+   * @param {string} baseDir - 基础目录路径
+   * @returns {Object} 配置对象和类型信息
    */
-  static loadConfig(configPath = path.join(process.cwd(), 'backpack_trading_config.json')) {
+  static loadConfig(baseDir = process.cwd()) {
+    // 检查双策略配置文件
+    const dualConfigPath = path.join(baseDir, 'dual_strategy_config.json');
+    const singleConfigPath = path.join(baseDir, 'backpack_trading_config.json');
+    
+    let config;
+    let configType;
+    let configPath;
+    
     try {
-      console.log(`加载配置文件: ${configPath}`);
-      
-      if (!fs.existsSync(configPath)) {
-        throw new Error(`配置文件不存在: ${configPath}`);
+      // 优先检查双策略配置
+      if (fs.existsSync(dualConfigPath)) {
+        const dualConfig = JSON.parse(fs.readFileSync(dualConfigPath, 'utf8'));
+        
+        // 检查是否启用双策略
+        if (dualConfig.enableDualStrategy === true) {
+          config = dualConfig;
+          configType = 'dual';
+          configPath = dualConfigPath;
+        } else {
+          // 双策略配置存在但未启用，转换为单策略
+          config = this.convertDualToSingle(dualConfig);
+          configType = 'single';
+          configPath = dualConfigPath;
+        }
+      }
+      // 如果没有双策略配置或未启用，使用单策略配置
+      else if (fs.existsSync(singleConfigPath)) {
+        config = JSON.parse(fs.readFileSync(singleConfigPath, 'utf8'));
+        configType = 'single';
+        configPath = singleConfigPath;
+      }
+      // 如果都不存在，抛出错误
+      else {
+        throw new Error('找不到配置文件: dual_strategy_config.json 或 backpack_trading_config.json');
       }
       
-      const configData = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(configData);
-      
       // 验证配置
-      this.validateConfig(config);
+      this.validateConfig(config, configType);
       
-      console.log(`配置文件加载成功`);
-      return config;
+      return {
+        config,
+        configType,
+        configPath
+      };
+      
     } catch (error) {
-      console.error(`加载配置文件失败: ${error.message}`);
-      throw error;
+      throw new Error(`加载配置文件失败: ${error.message}`);
     }
   }
   
   /**
-   * 验证配置有效性
-   * @param {Object} config - 配置对象
-   * @throws {Error} 如果配置无效
+   * 将双策略配置转换为单策略配置
+   * @param {Object} dualConfig - 双策略配置
+   * @returns {Object} 单策略配置
    */
-  static validateConfig(config) {
-    // 验证API配置
-    if (!config.api) {
-      throw new Error('缺少API配置');
-    }
-    if (!config.api.privateKey) {
-      throw new Error('缺少API私钥配置');
-    }
-    if (!config.api.publicKey) {
-      throw new Error('缺少API公钥配置');
-    }
+  static convertDualToSingle(dualConfig) {
+    // 使用策略1作为单策略
+    const strategy1 = dualConfig.strategy1;
     
-    // 验证交易配置
-    if (!config.trading) {
-      throw new Error('缺少交易配置');
-    }
-    if (!config.trading.tradingCoin) {
-      throw new Error('缺少交易币种配置');
-    }
-    if (!config.trading.totalAmount) {
-      throw new Error('缺少总金额配置');
-    }
-    if (!config.trading.orderCount) {
-      throw new Error('缺少订单数量配置');
-    }
-    if (!config.trading.maxDropPercentage) {
-      throw new Error('缺少最大下跌百分比配置');
-    }
-    if (!config.trading.incrementPercentage) {
-      throw new Error('缺少增量百分比配置');
-    }
-    if (!config.trading.takeProfitPercentage) {
-      throw new Error('缺少止盈百分比配置');
-    }
-    
-    // 验证精度配置
-    if (!config.minQuantities) {
-      throw new Error('缺少最小数量配置');
-    }
-    if (!config.quantityPrecisions) {
-      throw new Error('缺少数量精度配置');
-    }
-    if (!config.pricePrecisions) {
-      throw new Error('缺少价格精度配置');
-    }
-    
-    // 验证动作配置
-    if (!config.actions) {
-      config.actions = {
-        sellNonUsdcAssets: false,
+    return {
+      api: dualConfig.api,
+      trading: strategy1.trading,
+      actions: {
+        sellNonUsdcAssets: true,
         cancelAllOrders: true,
-        restartAfterTakeProfit: false,
-        autoRestartNoFill: false,
-        executeTrade: true,
-        cancelOrdersOnExit: true
-      };
+        restartAfterTakeProfit: true,
+        autoRestartNoFill: true
+      },
+      advanced: {
+        ...strategy1.advanced,
+        quickRestartAfterTakeProfit: true
+      },
+      quantityPrecisions: {
+        BTC: 5,
+        ETH: 4,
+        SOL: 2,
+        DEFAULT: 2
+      },
+      pricePrecisions: {
+        BTC: 0,
+        ETH: 2,
+        SOL: 2,
+        DEFAULT: 2
+      },
+      minQuantities: {
+        BTC: 0.00001,
+        ETH: 0.001,
+        SOL: 0.01,
+        DEFAULT: 0.1
+      },
+      websocket: dualConfig.websocket
+    };
+  }
+  
+  /**
+   * 验证配置文件
+   * @param {Object} config - 配置对象
+   * @param {string} configType - 配置类型
+   */
+  static validateConfig(config, configType) {
+    // 验证API配置
+    if (!config.api || !config.api.privateKey || !config.api.publicKey) {
+      throw new Error('API配置缺失：需要privateKey和publicKey');
+    }
+    
+    if (configType === 'dual') {
+      // 验证双策略配置
+      if (!config.strategy1 || !config.strategy2) {
+        throw new Error('双策略配置缺失：需要strategy1和strategy2');
+      }
+      
+      this.validateTradingConfig(config.strategy1.trading, 'strategy1');
+      this.validateTradingConfig(config.strategy2.trading, 'strategy2');
+      
+      // 验证风险控制配置
+      if (!config.riskControl) {
+        throw new Error('双策略配置缺失：需要riskControl配置');
+      }
     } else {
-      // 确保新版本中的字段存在
-      if (config.actions.executeTrade === undefined) {
-        config.actions.executeTrade = true;
-      }
-      if (config.actions.cancelOrdersOnExit === undefined) {
-        config.actions.cancelOrdersOnExit = true;
+      // 验证单策略配置
+      this.validateTradingConfig(config.trading, 'single');
+    }
+  }
+  
+  /**
+   * 验证交易配置
+   * @param {Object} trading - 交易配置
+   * @param {string} strategyName - 策略名称
+   */
+  static validateTradingConfig(trading, strategyName) {
+    if (!trading) {
+      throw new Error(`${strategyName}策略缺失trading配置`);
+    }
+    
+    const requiredFields = [
+      'tradingCoin',
+      'maxDropPercentage', 
+      'totalAmount',
+      'orderCount',
+      'incrementPercentage',
+      'takeProfitPercentage'
+    ];
+    
+    for (const field of requiredFields) {
+      if (trading[field] === undefined || trading[field] === null) {
+        throw new Error(`${strategyName}策略缺失必需字段: ${field}`);
       }
     }
     
-    // 验证高级配置
-    if (!config.advanced) {
-      config.advanced = {
-        minOrderAmount: 10,
-        priceTickSize: 0.01,
-        checkOrdersIntervalMinutes: 5,
-        monitorIntervalSeconds: 15,
-        sellNonUsdcMinValue: 10,
-        noFillRestartMinutes: 60
-      };
+    // 验证数值范围
+    if (trading.totalAmount <= 0) {
+      throw new Error(`${strategyName}策略totalAmount必须大于0`);
     }
     
-    // 验证websocket配置
-    if (!config.websocket) {
-      config.websocket = {
-        url: 'wss://ws.backpack.exchange'
-      };
+    if (trading.orderCount <= 0) {
+      throw new Error(`${strategyName}策略orderCount必须大于0`);
+    }
+    
+    if (trading.maxDropPercentage <= 0) {
+      throw new Error(`${strategyName}策略maxDropPercentage必须大于0`);
+    }
+    
+    if (trading.takeProfitPercentage <= 0) {
+      throw new Error(`${strategyName}策略takeProfitPercentage必须大于0`);
     }
   }
 }

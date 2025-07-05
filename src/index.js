@@ -2,25 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { Logger, log } = require('./utils/logger');
 const TradingApp = require('./app');
+const DualTradingApp = require('./app/dualTradingApp');
+const ConfigLoader = require('./config/configLoader');
 const TimeUtils = require('./utils/timeUtils');
 
 // 全局日志记录器
 let logger;
-
-/**
- * 读取配置文件
- * @param {string} configPath - 配置文件路径
- * @returns {Object} 配置对象
- */
-function readConfig(configPath) {
-  try {
-    const configFile = fs.readFileSync(configPath, 'utf8');
-    return JSON.parse(configFile);
-  } catch (error) {
-    console.error(`读取配置文件失败: ${error.message}`);
-    process.exit(1);
-  }
-}
 
 /**
  * 应用主函数
@@ -28,6 +15,7 @@ function readConfig(configPath) {
 async function main() {
   // 全局应用实例
   let app = null;
+  let configInfo = null;
   
   try {
     // 初始化日志记录器
@@ -42,18 +30,34 @@ async function main() {
     logger.log('WorkingDir: ' + process.cwd());
     logger.log('脚本基本路径: ' + __dirname);
     
-    // 读取配置文件
-    const configPath = path.join(__dirname, '../backpack_trading_config.json');
-    logger.log(`读取配置文件: ${configPath}`);
-    const config = readConfig(configPath);
+    // 自动检测并加载配置文件
+    try {
+      configInfo = ConfigLoader.loadConfig(path.join(__dirname, '..'));
+      logger.log(`检测到配置类型: ${configInfo.configType}`);
+      logger.log(`配置文件路径: ${configInfo.configPath}`);
+    } catch (configError) {
+      logger.log(`配置加载失败: ${configError.message}`, true);
+      process.exit(1);
+    }
     
-    // 记录基本配置信息
-    logger.log(`交易币种: ${config.trading?.tradingCoin}`);
-    logger.log(`总投资额: ${config.trading?.totalAmount} USDC`);
-    logger.log(`订单数量: ${config.trading?.orderCount}`);
-    
-    // 创建交易应用
-    app = new TradingApp(config, logger);
+    // 根据配置类型创建相应的应用实例
+    if (configInfo.configType === 'dual') {
+      logger.log('===== 启动双策略模式 =====');
+      logger.log(`策略1: ${configInfo.config.strategy1.name}`);
+      logger.log(`策略2: ${configInfo.config.strategy2.name}`);
+      logger.log(`总资金: ${configInfo.config.totalCapital} USDC`);
+      
+      // 创建双策略应用
+      app = new DualTradingApp(configInfo.config, logger);
+    } else {
+      logger.log('===== 启动单策略模式 =====');
+      logger.log(`交易币种: ${configInfo.config.trading?.tradingCoin}`);
+      logger.log(`总投资额: ${configInfo.config.trading?.totalAmount} USDC`);
+      logger.log(`订单数量: ${configInfo.config.trading?.orderCount}`);
+      
+      // 创建单策略应用
+      app = new TradingApp(configInfo.config, logger);
+    }
     
     // 设置SIGINT信号处理
     process.on('SIGINT', async () => {
@@ -86,7 +90,15 @@ async function main() {
       while (app.isRunning()) {
         // 记录当前状态
         if (TimeUtils.getElapsedTime(app.lastStatusLogTime) > 60000) { // 每分钟记录一次状态
-          logger.log('程序运行中...');
+          if (configInfo.configType === 'dual') {
+            logger.log('双策略程序运行中...');
+            // 显示双策略统计
+            if (app.displayDualStats) {
+              app.displayDualStats();
+            }
+          } else {
+            logger.log('单策略程序运行中...');
+          }
           app.lastStatusLogTime = TimeUtils.getCurrentTime();
         }
         
