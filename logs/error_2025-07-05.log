@@ -20,3 +20,7 @@
 [7/5/2025, 9:04:16 AM] API调用失败(尝试 1/3): Cannot read properties of undefined (reading 'Ticker')
 [7/5/2025, 9:04:18 AM] API调用失败(尝试 2/3): Cannot read properties of undefined (reading 'Ticker')
 [7/5/2025, 9:04:20 AM] API调用失败(尝试 3/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:04:54 AM] API调用失败(尝试 1/3): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/5/2025, 9:04:56 AM] API调用失败(尝试 2/3): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/5/2025, 9:04:58 AM] API调用失败(尝试 3/3): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/5/2025, 9:04:58 AM] 撤销订单失败: Cannot read properties of undefined (reading 'CancelOpenOrders')
