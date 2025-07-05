@@ -1,0 +1,60 @@
+{
+    "totalCapital": 5000,
+    "enableDualStrategy": true,
+    
+    "strategy1": {
+        "name": "高频小波动策略",
+        "trading": {
+            "tradingCoin": "BTC",
+            "maxDropPercentage": 0.8,
+            "totalAmount": 2500,
+            "orderCount": 4,
+            "incrementPercentage": 30,
+            "takeProfitPercentage": 0.06
+        },
+        "advanced": {
+            "checkOrdersIntervalMinutes": 1,
+            "monitorIntervalSeconds": 3,
+            "noFillRestartMinutes": 0.25,
+            "maxDailyTrades": 8
+        }
+    },
+    
+    "strategy2": {
+        "name": "中频大波动策略", 
+        "trading": {
+            "tradingCoin": "BTC",
+            "maxDropPercentage": 1.5,
+            "totalAmount": 2500,
+            "orderCount": 4,
+            "incrementPercentage": 40,
+            "takeProfitPercentage": 0.12
+        },
+        "advanced": {
+            "checkOrdersIntervalMinutes": 2,
+            "monitorIntervalSeconds": 5,
+            "noFillRestartMinutes": 0.5,
+            "maxDailyTrades": 5
+        }
+    },
+    
+    "riskControl": {
+        "maxDailyLoss": 200,
+        "maxConsecutiveLosses": 3,
+        "cooldownAfterLoss": 30,
+        "emergencyStopLoss": 500
+    },
+    
+    "api": {
+        "privateKey": "YOUR_PRIVATE_KEY",
+        "publicKey": "YOUR_PUBLIC_KEY"
+    },
+    
+    "websocket": {
+        "url": "wss://ws.backpack.exchange",
+        "options": {
+            "reconnect": true,
+            "reconnectInterval": 3000
+        }
+    }
+}

@@ -5,11 +5,11 @@
     },
     "trading": {
         "tradingCoin": "BTC",
-        "maxDropPercentage": 7,
-        "totalAmount": 2000,
-        "orderCount": 8,
-        "incrementPercentage": 50,
-        "takeProfitPercentage": 0.25
+        "maxDropPercentage": 1.2,
+        "totalAmount": 1000,
+        "orderCount": 4,
+        "incrementPercentage": 20,
+        "takeProfitPercentage": 0.08
     },
     "actions": {
         "sellNonUsdcAssets": true,
@@ -20,10 +20,12 @@
     "advanced": {
         "minOrderAmount": 10,
         "priceTickSize": 0.01,
-        "checkOrdersIntervalMinutes": 10,
-        "monitorIntervalSeconds": 15,
+        "checkOrdersIntervalMinutes": 2,
+        "monitorIntervalSeconds": 5,
         "sellNonUsdcMinValue": 10,
-        "noFillRestartMinutes": 1
+        "noFillRestartMinutes": 0.5,
+        "quickRestartAfterTakeProfit": true,
+        "maxDailyTrades": 20
     },
     "quantityPrecisions": {
         "BTC": 5,
