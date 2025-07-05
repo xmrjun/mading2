@@ -651,18 +651,22 @@ class TradingApp {
           
           // 如果订单存在且未处理，则视为已成交
           if (order && !this.tradeStats.isOrderProcessed(orderId)) {
-            // 将订单标记为已成交
-            order.status = 'Filled';
+            // 准备更新数据
+            const updateData = {
+              status: 'Filled'
+            };
             
             // 确保设置正确的成交数量和金额
-            // 如果订单已成交，应该将全部数量和金额标记为已成交
             if (order.filledQuantity <= 0) {
-              order.filledQuantity = order.quantity;
+              updateData.filledQuantity = order.quantity;
             }
             
             if (order.filledAmount <= 0) {
-              order.filledAmount = order.price * order.quantity;
+              updateData.filledAmount = order.price * order.quantity;
             }
+            
+            // 使用update方法更新订单，确保remainingQuantity被正确设置
+            order.update(updateData);
             
             // 添加到已成交订单列表
             filledOrders.push(order);

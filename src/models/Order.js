@@ -27,7 +27,14 @@ class Order {
     this.takeProfitPrice = orderData.takeProfitPrice || 0;
     this.sellOrderId = orderData.sellOrderId || null;
     this.sellStatus = orderData.sellStatus || 'Pending'; // Pending, Created, Filled
-    this.remainingQuantity = this.filledQuantity; // 剩余未卖出的数量
+    
+    // 修复剩余数量初始化逻辑
+    if (orderData.remainingQuantity !== undefined) {
+      this.remainingQuantity = parseFloat(orderData.remainingQuantity);
+    } else {
+      // 如果没有指定剩余数量，使用已成交数量作为初始值
+      this.remainingQuantity = this.filledQuantity;
+    }
   }
   
   /**
