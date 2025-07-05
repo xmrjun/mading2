@@ -837,6 +837,51 @@ class TradingApp {
           lastOrderCheckTime = checkTimeNow;
         }
         
+        // 检查分批止盈是否全部完成
+        const batchStats = this.orderManager.getBatchStats();
+        if (batchStats.filledBuyOrders > 0 && 
+            batchStats.filledBuyOrders === batchStats.fullySoldOrders && 
+            batchStats.totalAvailableQuantity <= 0) {
+          
+          log(`\n===== 分批止盈全部完成自动重启触发 =====`);
+          log(`已成交订单: ${batchStats.filledBuyOrders}`);
+          log(`已完全卖出: ${batchStats.fullySoldOrders}`);
+          log(`剩余可卖数量: ${batchStats.totalAvailableQuantity.toFixed(6)} ${this.tradingCoin}`);
+          log(`根据配置，系统将重置应用状态并开始新一轮交易...`);
+          
+          // 先取消所有未成交订单（如果有的话）
+          await this.cancelAllOrders();
+          
+          // 清除定时器
+          clearInterval(heartbeatInterval);
+          clearInterval(this.monitoringInterval);
+          
+          // 显式停止价格监控，确保WebSocket连接正确关闭
+          log('停止价格监控和WebSocket连接...');
+          this.priceMonitor.stopMonitoring();
+          
+          // 确保WebSocket连接被显式关闭
+          if (this.priceMonitor.wsManager) {
+            this.priceMonitor.wsManager.closeAllConnections();
+            log('已关闭所有WebSocket连接');
+          }
+          
+          // 重置应用状态
+          this.resetAppState();
+          
+          // 重新初始化应用
+          log('正在重新初始化交易环境...');
+          await this.initialize();
+          
+          // 重新启动应用
+          await this.start();
+          
+          // 重新执行交易策略
+          await this.executeTrade();
+          
+          return true;
+        }
+        
         // 注：价格和止盈检查已经在handlePriceUpdate方法中处理
         
       } catch (error) {
