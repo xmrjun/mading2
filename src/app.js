@@ -67,10 +67,33 @@ class TradingApp {
         const direction = priceIncrease >= 0 ? '上涨' : '下跌';
         log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
       }
+      
+      // 检查是否达到止盈条件 - 只有当有成交的买单时才检查止盈
+      if (this.tradeStats.filledOrders > 0 && this.running && !this.takeProfitTriggered) {
+        const takeProfitPercentage = this.config.trading.takeProfitPercentage;
+        
+        // 检查是否达到止盈条件
+        const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
+          priceInfo.price, 
+          this.tradeStats.averagePrice, 
+          takeProfitPercentage
+        );
+        
+        if (takeProfitReached) {
+          log(`\n===== 止盈条件达成！=====`);
+          log(`当前价格: ${priceInfo.price} USDC`);
+          log(`平均买入价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+          log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
+          log('准备卖出获利...');
+          
+          // 设置止盈触发标志，避免重复触发
+          this.takeProfitTriggered = true;
+          
+          // 执行止盈操作
+          this.executeTakeProfit();
+        }
+      }
     }
-    
-    // 检查分批止盈条件
-    this.checkBatchTakeProfit(priceInfo.price);
     
     // 更新显示（限制频率）
     const now = Date.now();
@@ -81,93 +104,7 @@ class TradingApp {
   }
   
   /**
-   * 检查分批止盈条件
-   * @param {number} currentPrice - 当前价格
-   */
-  async checkBatchTakeProfit(currentPrice) {
-    if (!this.running || !currentPrice) return;
-    
-    // 获取已成交但未止盈的买入订单
-    const filledBuyOrders = this.orderManager.getFilledBuyOrders();
-    if (filledBuyOrders.length === 0) return;
-    
-    const takeProfitPercentage = this.config.trading.takeProfitPercentage;
-    
-    // 检查每个订单是否达到止盈条件
-    for (const order of filledBuyOrders) {
-      // 计算止盈价格（如果还未计算）
-      if (order.takeProfitPrice === 0) {
-        order.calculateTakeProfitPrice(takeProfitPercentage);
-      }
-      
-      // 检查是否达到止盈条件
-      if (order.shouldTakeProfit(currentPrice)) {
-        log(`\n===== 订单 ${order.id} 达到止盈条件！=====`);
-        log(`买入价格: ${order.price.toFixed(2)} USDC`);
-        log(`当前价格: ${currentPrice.toFixed(2)} USDC`);
-        log(`止盈价格: ${order.takeProfitPrice.toFixed(2)} USDC`);
-        log(`数量: ${order.filledQuantity.toFixed(6)} ${this.tradingCoin}`);
-        
-        // 执行该订单的止盈操作
-        await this.executeBatchTakeProfit(order, currentPrice);
-      }
-    }
-  }
-  
-  /**
-   * 执行单个订单的分批止盈
-   * @param {Order} order - 要止盈的订单
-   * @param {number} currentPrice - 当前价格
-   */
-  async executeBatchTakeProfit(order, currentPrice) {
-    try {
-      // 标记订单为已触发止盈
-      order.triggerTakeProfit();
-      
-      // 计算卖出价格
-      const sellPrice = this.tradingStrategy.calculateOptimalSellPrice(currentPrice, this.tradingCoin);
-      const quantity = order.getAvailableQuantity();
-      
-      if (quantity <= 0) {
-        log(`订单 ${order.id} 没有可卖出的数量`);
-        return;
-      }
-      
-      log(`为订单 ${order.id} 创建卖出订单: ${quantity.toFixed(6)} ${this.tradingCoin} @ ${sellPrice.toFixed(2)} USDC`);
-      
-      // 创建卖出订单
-      const sellOrder = await this.backpackService.createSellOrder(
-        sellPrice,
-        quantity,
-        this.symbol
-      );
-      
-      if (sellOrder && sellOrder.id) {
-        // 更新订单的卖出信息
-        order.sellOrderId = sellOrder.id;
-        order.updateSellStatus('Created');
-        
-        log(`订单 ${order.id} 的卖出订单已创建: ${sellOrder.id}`);
-        
-        // 如果卖出订单立即成交
-        if (sellOrder.status === 'Filled') {
-          order.updateSellStatus('Filled', quantity);
-          log(`订单 ${order.id} 已完全卖出`);
-        }
-      } else {
-        log(`订单 ${order.id} 的卖出订单创建失败`, true);
-        // 重置止盈状态，允许重试
-        order.takeProfitTriggered = false;
-      }
-    } catch (error) {
-      log(`执行订单 ${order.id} 的止盈操作失败: ${error.message}`, true);
-      // 重置止盈状态，允许重试
-      order.takeProfitTriggered = false;
-    }
-  }
-  
-  /**
-   * 执行止盈操作（保留原有逻辑，用于向后兼容）
+   * 执行止盈操作
    */
   async executeTakeProfit() {
     try {
@@ -837,51 +774,6 @@ class TradingApp {
           lastOrderCheckTime = checkTimeNow;
         }
         
-        // 检查分批止盈是否全部完成
-        const batchStats = this.orderManager.getBatchStats();
-        if (batchStats.filledBuyOrders > 0 && 
-            batchStats.filledBuyOrders === batchStats.fullySoldOrders && 
-            batchStats.totalAvailableQuantity <= 0) {
-          
-          log(`\n===== 分批止盈全部完成自动重启触发 =====`);
-          log(`已成交订单: ${batchStats.filledBuyOrders}`);
-          log(`已完全卖出: ${batchStats.fullySoldOrders}`);
-          log(`剩余可卖数量: ${batchStats.totalAvailableQuantity.toFixed(6)} ${this.tradingCoin}`);
-          log(`根据配置，系统将重置应用状态并开始新一轮交易...`);
-          
-          // 先取消所有未成交订单（如果有的话）
-          await this.cancelAllOrders();
-          
-          // 清除定时器
-          clearInterval(heartbeatInterval);
-          clearInterval(this.monitoringInterval);
-          
-          // 显式停止价格监控，确保WebSocket连接正确关闭
-          log('停止价格监控和WebSocket连接...');
-          this.priceMonitor.stopMonitoring();
-          
-          // 确保WebSocket连接被显式关闭
-          if (this.priceMonitor.wsManager) {
-            this.priceMonitor.wsManager.closeAllConnections();
-            log('已关闭所有WebSocket连接');
-          }
-          
-          // 重置应用状态
-          this.resetAppState();
-          
-          // 重新初始化应用
-          log('正在重新初始化交易环境...');
-          await this.initialize();
-          
-          // 重新启动应用
-          await this.start();
-          
-          // 重新执行交易策略
-          await this.executeTrade();
-          
-          return true;
-        }
-        
         // 注：价格和止盈检查已经在handlePriceUpdate方法中处理
         
       } catch (error) {
@@ -1142,9 +1034,6 @@ class TradingApp {
         profitPercent = profit / this.tradeStats.totalFilledAmount * 100;
       }
       
-      // 获取分批止盈统计
-      const batchStats = this.orderManager.getBatchStats();
-      
       // 格式化并显示
       const data = {
         timeNow,
@@ -1158,7 +1047,6 @@ class TradingApp {
         takeProfitPercentage,
         percentProgress,
         stats: this.tradeStats,
-        batchStats: batchStats,
         tradingCoin: this.tradingCoin,
         currentValue,
         profit,
@@ -1240,35 +1128,6 @@ class TradingApp {
       log(`尚无成交订单，无法计算盈亏情况`);
     } else if (!this.currentPriceInfo || !this.currentPriceInfo.price) {
       log(`无法获取当前价格，无法计算盈亏情况`);
-    }
-    
-    // 显示分批止盈统计
-    const batchStats = this.orderManager.getBatchStats();
-    log('\n=== 分批止盈统计 ===');
-    log(`总买入订单: ${batchStats.totalBuyOrders}`);
-    log(`已成交订单: ${batchStats.filledBuyOrders}`);
-    log(`已触发止盈: ${batchStats.takeProfitTriggered}`);
-    log(`已完全卖出: ${batchStats.fullySoldOrders}`);
-    log(`待卖出订单: ${batchStats.pendingSellOrders}`);
-    log(`剩余可卖数量: ${batchStats.totalAvailableQuantity.toFixed(6)} ${this.tradingCoin}`);
-    
-    // 显示每个订单的详细状态
-    const filledOrders = this.orderManager.getFilledBuyOrders();
-    const pendingSellOrders = this.orderManager.getPendingSellOrders();
-    
-    if (filledOrders.length > 0) {
-      log('\n=== 订单详细状态 ===');
-      for (const order of this.orderManager.getAllOrders().filter(o => o.side === 'Bid' && o.isFilled())) {
-        const status = order.takeProfitTriggered ? 
-          (order.isFullySold() ? '已完全卖出' : `待卖出(${order.getAvailableQuantity().toFixed(6)})`) : 
-          '等待止盈';
-        
-        log(`订单 ${order.id}: 买入价=${order.price.toFixed(2)}, 数量=${order.filledQuantity.toFixed(6)}, 状态=${status}`);
-        
-        if (order.takeProfitPrice > 0) {
-          log(`  └─ 止盈价格: ${order.takeProfitPrice.toFixed(2)} USDC`);
-        }
-      }
     }
     
     log(`统计数据最后更新: ${stats.lastUpdateTime ? stats.lastUpdateTime.toLocaleString() : '无'}`);

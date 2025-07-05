@@ -21,20 +21,6 @@ class Order {
     this.createTime = orderData.createTime || new Date();
     this.updateTime = orderData.updateTime || new Date();
     this.processed = orderData.processed || false;
-    
-    // 分批止盈相关属性
-    this.takeProfitTriggered = orderData.takeProfitTriggered || false;
-    this.takeProfitPrice = orderData.takeProfitPrice || 0;
-    this.sellOrderId = orderData.sellOrderId || null;
-    this.sellStatus = orderData.sellStatus || 'Pending'; // Pending, Created, Filled
-    
-    // 修复剩余数量初始化逻辑
-    if (orderData.remainingQuantity !== undefined) {
-      this.remainingQuantity = parseFloat(orderData.remainingQuantity);
-    } else {
-      // 如果没有指定剩余数量，使用已成交数量作为初始值
-      this.remainingQuantity = this.filledQuantity;
-    }
   }
   
   /**
@@ -45,13 +31,7 @@ class Order {
     if (!data) return;
     
     if (data.status) this.status = data.status;
-    if (data.filledQuantity) {
-      this.filledQuantity = parseFloat(data.filledQuantity);
-      // 更新剩余数量（如果还没有触发止盈）
-      if (!this.takeProfitTriggered) {
-        this.remainingQuantity = this.filledQuantity;
-      }
-    }
+    if (data.filledQuantity) this.filledQuantity = parseFloat(data.filledQuantity);
     if (data.filledAmount) this.filledAmount = parseFloat(data.filledAmount);
     if (data.processed !== undefined) this.processed = data.processed;
     
@@ -87,69 +67,6 @@ class Order {
    */
   markAsProcessed() {
     this.processed = true;
-  }
-  
-  /**
-   * 计算止盈价格
-   * @param {number} takeProfitPercentage - 止盈百分比
-   * @returns {number} 止盈价格
-   */
-  calculateTakeProfitPrice(takeProfitPercentage) {
-    if (!this.isFilled()) return 0;
-    this.takeProfitPrice = this.price * (1 + takeProfitPercentage / 100);
-    return this.takeProfitPrice;
-  }
-  
-  /**
-   * 检查是否达到止盈条件
-   * @param {number} currentPrice - 当前价格
-   * @returns {boolean} 是否达到止盈条件
-   */
-  shouldTakeProfit(currentPrice) {
-    if (!this.isFilled() || this.takeProfitTriggered || this.takeProfitPrice <= 0) {
-      return false;
-    }
-    return currentPrice >= this.takeProfitPrice;
-  }
-  
-  /**
-   * 触发止盈
-   * @param {string} sellOrderId - 卖出订单ID
-   */
-  triggerTakeProfit(sellOrderId = null) {
-    this.takeProfitTriggered = true;
-    this.sellOrderId = sellOrderId;
-    this.sellStatus = sellOrderId ? 'Created' : 'Pending';
-    this.updateTime = new Date();
-  }
-  
-  /**
-   * 更新卖出状态
-   * @param {string} status - 卖出状态
-   * @param {number} soldQuantity - 已卖出数量
-   */
-  updateSellStatus(status, soldQuantity = 0) {
-    this.sellStatus = status;
-    if (soldQuantity > 0) {
-      this.remainingQuantity = Math.max(0, this.remainingQuantity - soldQuantity);
-    }
-    this.updateTime = new Date();
-  }
-  
-  /**
-   * 检查是否完全卖出
-   * @returns {boolean} 是否完全卖出
-   */
-  isFullySold() {
-    return this.sellStatus === 'Filled' && this.remainingQuantity <= 0;
-  }
-  
-  /**
-   * 获取可卖出数量
-   * @returns {number} 可卖出数量
-   */
-  getAvailableQuantity() {
-    return this.remainingQuantity;
   }
   
   /**
@@ -307,59 +224,7 @@ class OrderManager {
     return Array.from(this.orders.values());
   }
   
-  /**
-   * 获取已成交但未止盈的买入订单
-   * @returns {Array<Order>} 可以止盈的订单列表
-   */
-  getFilledBuyOrders() {
-    return Array.from(this.orders.values()).filter(order => 
-      order.side === 'Bid' && 
-      order.isFilled() && 
-      !order.takeProfitTriggered
-    );
-  }
-  
-  /**
-   * 获取已触发止盈但未完全卖出的订单
-   * @returns {Array<Order>} 待卖出的订单列表
-   */
-  getPendingSellOrders() {
-    return Array.from(this.orders.values()).filter(order => 
-      order.side === 'Bid' && 
-      order.takeProfitTriggered && 
-      !order.isFullySold()
-    );
-  }
-  
-  /**
-   * 计算总的剩余可卖出数量
-   * @returns {number} 总剩余可卖出数量
-   */
-  getTotalAvailableQuantity() {
-    return Array.from(this.orders.values())
-      .filter(order => order.side === 'Bid' && order.isFilled())
-      .reduce((total, order) => total + order.getAvailableQuantity(), 0);
-  }
-  
-  /**
-   * 获取订单的统计信息
-   * @returns {Object} 统计信息
-   */
-  getBatchStats() {
-    const buyOrders = Array.from(this.orders.values()).filter(order => order.side === 'Bid');
-    const filledOrders = buyOrders.filter(order => order.isFilled());
-    const takeProfitOrders = filledOrders.filter(order => order.takeProfitTriggered);
-    const fullySoldOrders = takeProfitOrders.filter(order => order.isFullySold());
-    
-    return {
-      totalBuyOrders: buyOrders.length,
-      filledBuyOrders: filledOrders.length,
-      takeProfitTriggered: takeProfitOrders.length,
-      fullySoldOrders: fullySoldOrders.length,
-      pendingSellOrders: takeProfitOrders.length - fullySoldOrders.length,
-      totalAvailableQuantity: this.getTotalAvailableQuantity()
-    };
-  }
+
 }
 
 module.exports = {

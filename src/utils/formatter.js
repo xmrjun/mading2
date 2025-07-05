@@ -91,7 +91,6 @@ class Formatter {
       takeProfitPercentage,
       percentProgress,
       stats,
-      batchStats,
       tradingCoin,
       currentValue,
       profit,
@@ -127,21 +126,7 @@ class Formatter {
       display += `盈亏百分比: ${profitSymbol} ${Math.abs(profitPercent).toFixed(2)}%\n`;
     }
     
-    // 显示分批止盈统计
-    if (batchStats) {
-      display += `\n===== 分批止盈统计 =====\n`;
-      display += `已成交买单: ${batchStats.filledBuyOrders}\n`;
-      display += `已触发止盈: ${batchStats.takeProfitTriggered}\n`;
-      display += `已完全卖出: ${batchStats.fullySoldOrders}\n`;
-      display += `待卖出订单: ${batchStats.pendingSellOrders}\n`;
-      display += `剩余可卖数量: ${batchStats.totalAvailableQuantity.toFixed(6)} ${tradingCoin}\n`;
-      
-      // 计算止盈完成率
-      if (batchStats.filledBuyOrders > 0) {
-        const completionRate = ((batchStats.fullySoldOrders / batchStats.filledBuyOrders) * 100).toFixed(1);
-        display += `止盈完成率: ${completionRate}%\n`;
-      }
-    }
+
     
     display += `最后更新: ${new Date().toLocaleString()}\n`;
     
