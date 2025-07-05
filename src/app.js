@@ -850,8 +850,8 @@ class TradingApp {
           await TimeUtils.delay(2000);
           
           // 获取更新后的持仓
-          const updatedPosition = await this.backpackService.getPosition(this.symbol);
-          if (updatedPosition && parseFloat(updatedPosition.quantity) > 0) {
+          const updatedPosition = await this.backpackService.getPosition(this.tradingCoin);
+          if (updatedPosition && parseFloat(updatedPosition.available || updatedPosition.total || "0") > 0) {
             const updatedRawQuantity = parseFloat(updatedPosition.quantity);
             if (isNaN(updatedRawQuantity) || updatedRawQuantity <= 0) {
               log(`更新后的持仓数量无效: ${updatedPosition.quantity}`);
