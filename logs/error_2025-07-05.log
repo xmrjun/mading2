@@ -1,0 +1,9 @@
+[7/5/2025, 9:00:43 AM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/5/2025, 9:00:43 AM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/5/2025, 9:00:43 AM] API调用失败(尝试 1/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:00:45 AM] API调用失败(尝试 2/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:00:47 AM] API调用失败(尝试 3/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:00:47 AM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/5/2025, 9:00:47 AM] API调用失败(尝试 1/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:00:49 AM] API调用失败(尝试 2/3): Cannot read properties of undefined (reading 'Ticker')
+[7/5/2025, 9:00:51 AM] API调用失败(尝试 3/3): Cannot read properties of undefined (reading 'Ticker')
