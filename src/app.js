@@ -215,7 +215,21 @@ class TradingApp {
       const skipHistory = process.argv.includes('--fresh') || process.argv.includes('--no-history');
       
       if (skipHistory) {
-        log('🆕 全新启动模式：跳过历史订单恢复，从当前状态开始');
+        log('🆕 全新启动模式：清理现有订单，从零开始');
+        
+        // 先取消所有未成交订单，避免遗漏
+        try {
+          log('正在取消所有现有未成交订单...');
+          await this.backpackService.cancelAllOrders(this.symbol);
+          log('✅ 已取消所有现有订单');
+          
+          // 等待一小段时间确保订单取消完成
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error) {
+          log(`取消现有订单失败: ${error.message}`, true);
+        }
+        
+        log('🔄 从当前状态开始，不统计历史订单');
       } else {
         log('📋 正常启动模式：恢复历史订单数据');
         await this.loadHistoricalOrders();
