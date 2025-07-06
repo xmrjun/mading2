@@ -13,6 +13,33 @@ const Formatter = require('./utils/formatter');
  */
 class TradingApp {
   /**
+   * 🔧 智能交易对格式检测
+   * 根据不同币种返回正确的交易对格式
+   * @param {string} coin - 币种符号
+   * @returns {string} - 交易对格式
+   */
+  getSymbolForCoin(coin) {
+    // 交易对映射表 - 可以根据实际情况灵活配置
+    const symbolMapping = {
+      'ETH': 'ETH_USD',    // ETH使用USD计价
+      'BTC': 'BTC_USDC',   // BTC使用USDC计价
+      'SOL': 'SOL_USDC',   // SOL使用USDC计价
+      'USDT': 'USDT_USDC', // USDT使用USDC计价
+      'DOGE': 'DOGE_USDC', // DOGE使用USDC计价
+      'ADA': 'ADA_USDC',   // ADA使用USDC计价
+      'AVAX': 'AVAX_USDC', // AVAX使用USDC计价
+      'MATIC': 'MATIC_USDC', // MATIC使用USDC计价
+      'LINK': 'LINK_USDC', // LINK使用USDC计价
+      'UNI': 'UNI_USDC',   // UNI使用USDC计价
+    };
+    
+    // 返回映射的交易对，如果没有映射则默认使用USDC
+    const symbol = symbolMapping[coin] || `${coin}_USDC`;
+    log(`🔧 币种 ${coin} 映射到交易对: ${symbol}`);
+    return symbol;
+  }
+
+  /**
    * 构造函数
    * @param {Object} config - 配置对象
    */
@@ -162,8 +189,8 @@ class TradingApp {
       // 读取并设置配置
       this.config = this.config || {};
       this.tradingCoin = this.config.trading?.tradingCoin || this.config.tradingCoin || 'BTC';
-      // 根据实际交易对格式构建symbol
-    this.symbol = this.tradingCoin === 'ETH' ? 'ETH_USD' : `${this.tradingCoin}_USDC`;
+      // 🔧 智能交易对格式检测
+    this.symbol = this.getSymbolForCoin(this.tradingCoin);
       this.apiSymbol = this.symbol;  // 使用相同的格式，不需要转换
       
       log(`交易对: ${this.apiSymbol}`);
