@@ -4,7 +4,7 @@
         "publicKey": "----------------------------"
     },
     "trading": {
-        "tradingCoin": "BTC",
+        "tradingCoin": "ETH",
         "maxDropPercentage": 1.5,
         "totalAmount": 5000,
         "orderCount": 4,

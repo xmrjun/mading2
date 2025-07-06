@@ -20,7 +20,8 @@ class BackpackService {
     this.privateKey = config.api.privateKey;
     this.publicKey = config.api.publicKey;
     this.tradingCoin = config.trading?.tradingCoin || 'BTC';
-    this.symbol = `${this.tradingCoin}_USDC`; 
+    // 根据实际交易对格式构建symbol
+    this.symbol = this.tradingCoin === 'ETH' ? 'ETH_USD' : `${this.tradingCoin}_USDC`; 
     
     // 初始化官方BackpackClient
     try {

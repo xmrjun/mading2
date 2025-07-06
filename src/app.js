@@ -162,7 +162,8 @@ class TradingApp {
       // 读取并设置配置
       this.config = this.config || {};
       this.tradingCoin = this.config.trading?.tradingCoin || this.config.tradingCoin || 'BTC';
-      this.symbol = `${this.tradingCoin}_USDC`;
+      // 根据实际交易对格式构建symbol
+    this.symbol = this.tradingCoin === 'ETH' ? 'ETH_USD' : `${this.tradingCoin}_USDC`;
       this.apiSymbol = this.symbol;  // 使用相同的格式，不需要转换
       
       log(`交易对: ${this.apiSymbol}`);
