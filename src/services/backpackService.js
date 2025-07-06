@@ -42,7 +42,7 @@ class BackpackService {
    * @param {number} retryDelay - 重试间隔(毫秒)
    * @returns {Promise<any>} - API响应
    */
-  async executeWithRetry(apiCall, maxRetries = 3, retryDelay = 2000) {
+  async executeWithRetry(apiCall, maxRetries = 5, retryDelay = 3000) {
     let lastError;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -94,9 +94,17 @@ class BackpackService {
         }
         
         if (attempt < maxRetries) {
-          const logMethod = this.logger?.log || console.log;
-          logMethod(`${retryDelay/1000}秒后重试...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          // 对于429错误（频率限制），使用更长的延迟
+          let actualDelay = retryDelay;
+          if (error.response && error.response.status === 429) {
+            actualDelay = Math.min(retryDelay * attempt * 2, 30000); // 最大30秒
+            const logMethod = this.logger?.log || console.log;
+            logMethod(`遇到频率限制，${actualDelay/1000}秒后重试...`);
+          } else {
+            const logMethod = this.logger?.log || console.log;
+            logMethod(`${actualDelay/1000}秒后重试...`);
+          }
+          await new Promise(resolve => setTimeout(resolve, actualDelay));
         }
       }
     }
