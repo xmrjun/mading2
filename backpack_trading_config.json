@@ -4,12 +4,12 @@
         "publicKey": "----------------------------"
     },
     "trading": {
-        "tradingCoin": "ETH",
-        "maxDropPercentage": 1.5,
-        "totalAmount": 5000,
-        "orderCount": 4,
+        "tradingCoin": "BTC",
+        "maxDropPercentage": 7,
+        "totalAmount": 2000,
+        "orderCount": 8,
         "incrementPercentage": 50,
-        "takeProfitPercentage": 0.6
+        "takeProfitPercentage": 0.25
     },
     "actions": {
         "sellNonUsdcAssets": true,
@@ -23,9 +23,7 @@
         "checkOrdersIntervalMinutes": 10,
         "monitorIntervalSeconds": 15,
         "sellNonUsdcMinValue": 10,
-        "noFillRestartMinutes": 1,
-        "quickRestartAfterTakeProfit": true,
-        "maxDailyTrades": 20
+        "noFillRestartMinutes": 1
     },
     "quantityPrecisions": {
         "BTC": 5,
