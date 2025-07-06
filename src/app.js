@@ -211,8 +211,15 @@ class TradingApp {
         log(`获取初始价格失败: ${error.message}`);
       }
       
-      // 恢复历史订单数据并与实际余额对比
-      await this.loadHistoricalOrdersWithBalanceCheck();
+      // 根据启动参数决定是否恢复历史订单
+      const skipHistory = process.argv.includes('--fresh') || process.argv.includes('--no-history');
+      
+      if (skipHistory) {
+        log('🆕 全新启动模式：跳过历史订单恢复，从当前状态开始');
+      } else {
+        log('📋 正常启动模式：恢复历史订单数据');
+        await this.loadHistoricalOrders();
+      }
       
       return true;
     } catch (error) {
