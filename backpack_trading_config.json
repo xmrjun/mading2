@@ -5,11 +5,11 @@
     },
     "trading": {
         "tradingCoin": "BTC",
-        "maxDropPercentage": 0.6,
+        "maxDropPercentage": 1.2,
         "totalAmount": 5000,
-        "orderCount": 5,
+        "orderCount": 4,
         "incrementPercentage": 50,
-        "takeProfitPercentage": 0.6
+        "takeProfitPercentage": 0.8
     },
     "actions": {
         "sellNonUsdcAssets": true,
