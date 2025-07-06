@@ -185,3 +185,9 @@
 [7/6/2025, 3:42:05 PM] 尚无成交订单，无法计算盈亏情况
 [7/6/2025, 3:42:05 PM] 统计数据最后更新: 无
 [7/6/2025, 3:42:05 PM] 已处理订单数量: 0
+[7/6/2025, 3:53:44 PM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/6/2025, 3:53:44 PM] WebSocketManager: onPriceUpdate回调已设置
+[7/6/2025, 3:53:44 PM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/6/2025, 3:53:44 PM] WebSocketManager.onPriceUpdate 已正确设置
+[7/6/2025, 3:53:44 PM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:53:44 PM] 3秒后重试...
