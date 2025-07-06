@@ -39,3 +39,77 @@
 [7/6/2025, 2:53:05 PM] 3秒后重试...
 [7/6/2025, 2:53:08 PM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'OrderHistory')
 [7/6/2025, 2:53:08 PM] 3秒后重试...
+[7/6/2025, 3:40:53 PM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/6/2025, 3:40:53 PM] WebSocketManager: onPriceUpdate回调已设置
+[7/6/2025, 3:40:53 PM] 总资金: 5000 USDC
+[7/6/2025, 3:40:53 PM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/6/2025, 3:40:53 PM] 所有服务初始化完成
+[7/6/2025, 3:40:53 PM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:40:53 PM] 3秒后重试...
+[7/6/2025, 3:40:56 PM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:40:56 PM] 3秒后重试...
+[7/6/2025, 3:40:59 PM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:40:59 PM] 3秒后重试...
+[7/6/2025, 3:41:02 PM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:02 PM] 3秒后重试...
+[7/6/2025, 3:41:05 PM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:05 PM] 获取BTC_USDC订单历史记录...
+[7/6/2025, 3:41:05 PM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:05 PM] 3秒后重试...
+[7/6/2025, 3:41:08 PM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:08 PM] 3秒后重试...
+[7/6/2025, 3:41:11 PM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:11 PM] 3秒后重试...
+[7/6/2025, 3:41:14 PM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:14 PM] 3秒后重试...
+[7/6/2025, 3:41:17 PM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:17 PM] 获取订单历史记录失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:17 PM] 恢复历史订单数据失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:17 PM] ===== 初始化双策略交易环境 =====
+[7/6/2025, 3:41:17 PM] 策略2: 中频大波动策略
+[7/6/2025, 3:41:17 PM] 初始化BackpackClient失败: 私钥处理错误: 私钥长度不足
+[7/6/2025, 3:41:17 PM] WebSocketManager.onPriceUpdate 已正确设置
+[7/6/2025, 3:41:17 PM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:17 PM] 3秒后重试...
+[7/6/2025, 3:41:20 PM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:20 PM] 3秒后重试...
+[7/6/2025, 3:41:23 PM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:23 PM] 3秒后重试...
+[7/6/2025, 3:41:26 PM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:26 PM] 3秒后重试...
+[7/6/2025, 3:41:29 PM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:29 PM] 获取行情失败: Cannot read properties of undefined (reading 'Ticker')
+[7/6/2025, 3:41:29 PM] 获取BTC_USDC订单历史记录...
+[7/6/2025, 3:41:29 PM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:29 PM] 3秒后重试...
+[7/6/2025, 3:41:32 PM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:32 PM] 3秒后重试...
+[7/6/2025, 3:41:35 PM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:35 PM] 3秒后重试...
+[7/6/2025, 3:41:38 PM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:38 PM] 3秒后重试...
+[7/6/2025, 3:41:41 PM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:41 PM] 获取订单历史记录失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:41 PM] 恢复历史订单数据失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/6/2025, 3:41:41 PM] WebSocketManager: onPriceUpdate回调已设置
+[7/6/2025, 3:41:41 PM] 启动对 BTC_USDC 的价格监控...
+[7/6/2025, 3:41:41 PM] 开始建立WebSocket连接: wss://ws.backpack.exchange
+[7/6/2025, 3:41:42 PM] 已订阅行情: BTC_USDC
+[7/6/2025, 3:41:43 PM] 价格更新: BTC_USDC = 108750 USDC 
+[7/6/2025, 3:41:43 PM] - 今日交易次数: 1
+[7/6/2025, 3:41:44 PM] 当前价格: 108750
+[7/6/2025, 3:41:44 PM] 订单1: 108750美金 买入 351.91美金
+[7/6/2025, 3:41:44 PM] 订单2: 108206.25美金 买入 492.68美金
+[7/6/2025, 3:41:44 PM] 订单4: 107118.75美金 买入 965.65美金
+[7/6/2025, 3:41:44 PM] - 预期利润: 3.00美金
+[7/6/2025, 3:41:46 PM] 双策略执行完成
+[7/6/2025, 3:41:47 PM] 当前价格: 108750
+[7/6/2025, 3:41:47 PM] 订单1: 108750美金 买入 351.91美金
+[7/6/2025, 3:41:47 PM] 订单2: 108206.25美金 买入 492.68美金
+[7/6/2025, 3:41:48 PM] 策略参数: 下跌1.5%, 止盈0.12%
+[7/6/2025, 3:41:48 PM] 订单4: 107118.75美金 买入 965.65美金
+[7/6/2025, 3:41:48 PM] 中频大波动策略 交易启动成功:
+[7/6/2025, 3:41:49 PM] 策略参数: 下跌1.5%, 止盈0.12%
+[7/6/2025, 3:41:49 PM] - 投入金额: 2499.9900000000002美金
+[7/6/2025, 3:41:51 PM] 双策略执行完成
+[7/6/2025, 3:41:52 PM] 策略 strategy1 存在冲突，跳过执行

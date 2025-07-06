@@ -1155,19 +1155,56 @@ class TradingApp {
       
       log(`获取到 ${historicalOrders.length} 个历史订单记录`);
       
-      // 筛选已成交的买单
-      const filledBuyOrders = historicalOrders.filter(order => 
-        order.status === 'Filled' && 
-        order.side === 'Bid' &&
-        order.symbol === this.symbol
-      );
+      // 🔍 详细分析所有订单类型
+      const orderTypeStats = {};
+      const sideStats = {};
+      const statusStats = {};
+      
+      for (const order of historicalOrders) {
+        // 统计订单类型
+        const orderType = order.orderType || order.type || 'Unknown';
+        orderTypeStats[orderType] = (orderTypeStats[orderType] || 0) + 1;
+        
+        // 统计订单方向
+        const side = order.side || 'Unknown';
+        sideStats[side] = (sideStats[side] || 0) + 1;
+        
+        // 统计订单状态
+        const status = order.status || 'Unknown';
+        statusStats[status] = (statusStats[status] || 0) + 1;
+      }
+      
+      log(`📊 订单类型统计: ${JSON.stringify(orderTypeStats)}`);
+      log(`📊 订单方向统计: ${JSON.stringify(sideStats)}`);
+      log(`📊 订单状态统计: ${JSON.stringify(statusStats)}`);
+      
+      // 🔧 放宽筛选条件：包含所有已成交的买单（限价单和市价单）
+      const filledBuyOrders = historicalOrders.filter(order => {
+        const isFilledStatus = order.status === 'Filled';
+        const isBuyOrder = order.side === 'Bid' || order.side === 'Buy' || order.side === 'BUY';
+        const isCorrectSymbol = order.symbol === this.symbol;
+        
+        // 🔍 记录所有已成交的买单详情
+        if (isFilledStatus && isBuyOrder && isCorrectSymbol) {
+          log(`✅ 筛选到买单: ${order.id} - ${order.side} ${order.orderType || order.type} ${order.quantity} @ ${order.price}`);
+        }
+        
+        return isFilledStatus && isBuyOrder && isCorrectSymbol;
+      });
       
       if (filledBuyOrders.length === 0) {
-        log('未找到已成交的买单');
+        log('❌ 未找到已成交的买单');
+        
+        // 🔍 显示前5个订单的详细信息用于调试
+        log('📋 前5个订单详情:');
+        for (let i = 0; i < Math.min(5, historicalOrders.length); i++) {
+          const order = historicalOrders[i];
+          log(`订单${i+1}: ${order.id} - ${order.side} ${order.status} ${order.orderType || order.type} ${order.quantity} @ ${order.price}`);
+        }
         return;
       }
       
-      log(`找到 ${filledBuyOrders.length} 个已成交的买单`);
+      log(`✅ 找到 ${filledBuyOrders.length} 个已成交的买单`);
       
              // 按时间排序（最新的在前）
        filledBuyOrders.sort((a, b) => {
