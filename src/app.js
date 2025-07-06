@@ -1155,14 +1155,18 @@ class TradingApp {
       
       log(`获取到 ${historicalOrders.length} 个历史订单记录`);
       
-      // 筛选已成交的买单 - 支持多种交易对格式和订单类型
+      // 筛选已成交的买单 - 支持多种订单类型和交易对格式
       const filledBuyOrders = historicalOrders.filter(order => {
-        const isFilledStatus = order.status === 'Filled';
-        const isBuyOrder = order.side === 'Bid' || order.side === 'Buy' || order.side === 'BUY';
+        const isFilledStatus = order.status === 'Filled' || order.status === 'filled';
+        const isBuyOrder = order.side === 'Bid' || order.side === 'Buy' || order.side === 'BUY' || order.side === 'bid' || order.side === 'buy';
         const isCorrectSymbol = order.symbol === this.symbol || 
                                order.symbol === this.symbol.replace('_USD', '/USD') ||
                                order.symbol === this.symbol.replace('_USDC', '/USDC') ||
                                order.symbol === this.symbol.replace('_', '/');
+        
+        if (isFilledStatus && isBuyOrder && isCorrectSymbol) {
+          log(`✅ 找到买单: ${order.id} - ${order.side} ${order.orderType || order.type || 'Unknown'} ${order.quantity} @ ${order.price}`);
+        }
         
         return isFilledStatus && isBuyOrder && isCorrectSymbol;
       });
