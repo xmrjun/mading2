@@ -211,8 +211,9 @@ class TradingApp {
         log(`获取初始价格失败: ${error.message}`);
       }
       
-      // 恢复历史订单数据（修复重启后数据丢失问题）
-      await this.loadHistoricalOrders();
+      // 暂时禁用历史订单恢复 - 避免手动卖出后数据不匹配
+      // await this.loadHistoricalOrders();
+      log('已禁用历史订单恢复，系统将从当前状态开始统计');
       
       return true;
     } catch (error) {
