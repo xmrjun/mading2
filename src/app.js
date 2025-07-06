@@ -208,8 +208,7 @@ class TradingApp {
       }
       
       // 恢复历史订单数据（修复重启后数据丢失问题）
-      // 临时禁用：如需全新开始，注释掉下面一行
-      // await this.loadHistoricalOrders();
+      await this.loadHistoricalOrders();
       
       return true;
     } catch (error) {
