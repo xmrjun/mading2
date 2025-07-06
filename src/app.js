@@ -13,33 +13,6 @@ const Formatter = require('./utils/formatter');
  */
 class TradingApp {
   /**
-   * 🔧 智能交易对格式检测
-   * 根据不同币种返回正确的交易对格式
-   * @param {string} coin - 币种符号
-   * @returns {string} - 交易对格式
-   */
-  getSymbolForCoin(coin) {
-    // 交易对映射表 - 可以根据实际情况灵活配置
-    const symbolMapping = {
-      'ETH': 'ETH_USD',    // ETH使用USD计价
-      'BTC': 'BTC_USDC',   // BTC使用USDC计价
-      'SOL': 'SOL_USDC',   // SOL使用USDC计价
-      'USDT': 'USDT_USDC', // USDT使用USDC计价
-      'DOGE': 'DOGE_USDC', // DOGE使用USDC计价
-      'ADA': 'ADA_USDC',   // ADA使用USDC计价
-      'AVAX': 'AVAX_USDC', // AVAX使用USDC计价
-      'MATIC': 'MATIC_USDC', // MATIC使用USDC计价
-      'LINK': 'LINK_USDC', // LINK使用USDC计价
-      'UNI': 'UNI_USDC',   // UNI使用USDC计价
-    };
-    
-    // 返回映射的交易对，如果没有映射则默认使用USDC
-    const symbol = symbolMapping[coin] || `${coin}_USDC`;
-    log(`🔧 币种 ${coin} 映射到交易对: ${symbol}`);
-    return symbol;
-  }
-
-  /**
    * 构造函数
    * @param {Object} config - 配置对象
    */
@@ -189,8 +162,7 @@ class TradingApp {
       // 读取并设置配置
       this.config = this.config || {};
       this.tradingCoin = this.config.trading?.tradingCoin || this.config.tradingCoin || 'BTC';
-      // 🔧 智能交易对格式检测
-    this.symbol = this.getSymbolForCoin(this.tradingCoin);
+      this.symbol = `${this.tradingCoin}_USDC`;
       this.apiSymbol = this.symbol;  // 使用相同的格式，不需要转换
       
       log(`交易对: ${this.apiSymbol}`);
@@ -1183,56 +1155,19 @@ class TradingApp {
       
       log(`获取到 ${historicalOrders.length} 个历史订单记录`);
       
-      // 🔍 详细分析所有订单类型
-      const orderTypeStats = {};
-      const sideStats = {};
-      const statusStats = {};
-      
-      for (const order of historicalOrders) {
-        // 统计订单类型
-        const orderType = order.orderType || order.type || 'Unknown';
-        orderTypeStats[orderType] = (orderTypeStats[orderType] || 0) + 1;
-        
-        // 统计订单方向
-        const side = order.side || 'Unknown';
-        sideStats[side] = (sideStats[side] || 0) + 1;
-        
-        // 统计订单状态
-        const status = order.status || 'Unknown';
-        statusStats[status] = (statusStats[status] || 0) + 1;
-      }
-      
-      log(`📊 订单类型统计: ${JSON.stringify(orderTypeStats)}`);
-      log(`📊 订单方向统计: ${JSON.stringify(sideStats)}`);
-      log(`📊 订单状态统计: ${JSON.stringify(statusStats)}`);
-      
-      // 🔧 放宽筛选条件：包含所有已成交的买单（限价单和市价单）
-      const filledBuyOrders = historicalOrders.filter(order => {
-        const isFilledStatus = order.status === 'Filled';
-        const isBuyOrder = order.side === 'Bid' || order.side === 'Buy' || order.side === 'BUY';
-        const isCorrectSymbol = order.symbol === this.symbol;
-        
-        // 🔍 记录所有已成交的买单详情
-        if (isFilledStatus && isBuyOrder && isCorrectSymbol) {
-          log(`✅ 筛选到买单: ${order.id} - ${order.side} ${order.orderType || order.type} ${order.quantity} @ ${order.price}`);
-        }
-        
-        return isFilledStatus && isBuyOrder && isCorrectSymbol;
-      });
+      // 筛选已成交的买单
+      const filledBuyOrders = historicalOrders.filter(order => 
+        order.status === 'Filled' && 
+        order.side === 'Bid' &&
+        order.symbol === this.symbol
+      );
       
       if (filledBuyOrders.length === 0) {
-        log('❌ 未找到已成交的买单');
-        
-        // 🔍 显示前5个订单的详细信息用于调试
-        log('📋 前5个订单详情:');
-        for (let i = 0; i < Math.min(5, historicalOrders.length); i++) {
-          const order = historicalOrders[i];
-          log(`订单${i+1}: ${order.id} - ${order.side} ${order.status} ${order.orderType || order.type} ${order.quantity} @ ${order.price}`);
-        }
+        log('未找到已成交的买单');
         return;
       }
       
-      log(`✅ 找到 ${filledBuyOrders.length} 个已成交的买单`);
+      log(`找到 ${filledBuyOrders.length} 个已成交的买单`);
       
              // 按时间排序（最新的在前）
        filledBuyOrders.sort((a, b) => {
