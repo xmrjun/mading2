@@ -26,8 +26,11 @@ class TradingApp {
     this.orderManager = new OrderManager();
     this.tradeStats = new TradeStats();
     
-    // 初始化订单管理服务
+    // 初始化订单管理服务 - 传入统一的统计实例
     this.orderManagerService = new OrderManagerService(config, this.backpackService);
+    // 确保使用同一套统计实例
+    this.orderManagerService.orderManager = this.orderManager;
+    this.orderManagerService.tradeStats = this.tradeStats;
     
     // 初始化价格监控器
     this.priceMonitor = new PriceMonitor({
@@ -167,9 +170,10 @@ class TradingApp {
       
       log(`交易对: ${this.apiSymbol}`);
       
-      // 初始化服务和管理器
-      // TimeUtils是静态类，不需要实例化
-      this.orderManager = new OrderManager();
+      // 初始化服务和管理器 - 重用已有实例，避免重复创建
+      // 重置现有实例而不是创建新实例
+      this.orderManager.reset();
+      this.tradeStats.reset();
       
       // 确保传递logger给所有服务
       this.backpackService = new BackpackService(this.config, this.logger);
@@ -507,10 +511,14 @@ class TradingApp {
             
             // 添加订单到管理器，并记录这个签名
             this.orderManager.addOrder(newOrder);
-            this.orderManager.createdOrderSignatures.add(orderSignature);
             
-            // 增加总订单计数
+            // 增加总订单计数 - 确保使用主应用的统计实例
             this.tradeStats.totalOrders++;
+            
+            // 如果订单立即成交，更新统计
+            if (newOrder.status === 'Filled') {
+              this.tradeStats.updateStats(newOrder);
+            }
             
             // 在终端显示订单创建信息（确保显示）
             log(`订单已创建: ${result.id} - ${order.quantity} ${this.tradingCoin} @ ${order.price} USDC`);
@@ -1281,10 +1289,16 @@ class TradingApp {
   resetAppState() {
     log('\n===== 重置应用状态 =====');
     
-    // 重置全局配置的一些状态
+    // 重置全局配置的一些状态 - 确保统一重置
     this.scriptStartTime = new Date();
     this.tradeStats.reset();
     this.orderManager.reset();
+    
+    // 确保订单管理服务也使用重置后的实例
+    if (this.orderManagerService) {
+      this.orderManagerService.orderManager = this.orderManager;
+      this.orderManagerService.tradeStats = this.tradeStats;
+    }
     
     // 确保WebSocket资源被正确清理
     if (this.priceMonitor && this.priceMonitor.wsManager) {
