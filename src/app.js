@@ -169,7 +169,7 @@ class TradingApp {
       
       // 初始化服务和管理器
       // TimeUtils是静态类，不需要实例化
-      this.orderManager = new OrderManager(this.logger);
+      this.orderManager = new OrderManager();
       
       // 确保传递logger给所有服务
       this.backpackService = new BackpackService(this.config, this.logger);
@@ -206,6 +206,9 @@ class TradingApp {
       } catch (error) {
         log(`获取初始价格失败: ${error.message}`);
       }
+      
+      // 恢复历史订单数据（修复重启后数据丢失问题）
+      await this.loadHistoricalOrders();
       
       return true;
     } catch (error) {
@@ -1133,6 +1136,134 @@ class TradingApp {
     log(`统计数据最后更新: ${stats.lastUpdateTime ? stats.lastUpdateTime.toLocaleString() : '无'}`);
     log(`已处理订单数量: ${stats.processedOrderIds ? stats.processedOrderIds.size : 0}`);
     log('==================\n');
+  }
+  
+  /**
+   * 恢复历史订单数据（修复重启后数据丢失问题）
+   */
+  async loadHistoricalOrders() {
+    try {
+      log('正在恢复历史订单数据...');
+      
+      // 查询历史订单（增加到7天内的订单）
+      const historicalOrders = await this.backpackService.getOrderHistory(this.symbol, 200);
+      
+      if (!historicalOrders || historicalOrders.length === 0) {
+        log('未找到历史订单记录');
+        return;
+      }
+      
+      log(`获取到 ${historicalOrders.length} 个历史订单记录`);
+      
+      // 筛选已成交的买单
+      const filledBuyOrders = historicalOrders.filter(order => 
+        order.status === 'Filled' && 
+        order.side === 'Bid' &&
+        order.symbol === this.symbol
+      );
+      
+      if (filledBuyOrders.length === 0) {
+        log('未找到已成交的买单');
+        return;
+      }
+      
+      log(`找到 ${filledBuyOrders.length} 个已成交的买单`);
+      
+             // 按时间排序（最新的在前）
+       filledBuyOrders.sort((a, b) => {
+         const timeA = new Date(a.timestamp || a.createTime || 0).getTime();
+         const timeB = new Date(b.timestamp || b.createTime || 0).getTime();
+         return timeB - timeA;
+       });
+       
+       // 将历史订单添加到本地管理器
+       let recoveredCount = 0;
+       let skippedCount = 0;
+       
+       for (const historyOrder of filledBuyOrders) {
+         try {
+           // 检查是否已经存在此订单
+           if (this.orderManager.getOrder(historyOrder.id)) {
+             skippedCount++;
+             continue;
+           }
+           
+           // 验证订单数据完整性
+           const price = parseFloat(historyOrder.price);
+           const quantity = parseFloat(historyOrder.quantity);
+           const filledQuantity = parseFloat(historyOrder.filledQuantity || historyOrder.quantity);
+           
+           if (isNaN(price) || isNaN(quantity) || isNaN(filledQuantity) || 
+               price <= 0 || quantity <= 0 || filledQuantity <= 0) {
+             log(`跳过无效订单数据: ${historyOrder.id} - price=${historyOrder.price}, quantity=${historyOrder.quantity}`, true);
+             skippedCount++;
+             continue;
+           }
+           
+           // 创建订单对象
+           const order = new Order({
+             id: historyOrder.id,
+             symbol: historyOrder.symbol,
+             side: historyOrder.side,
+             price: price,
+             quantity: quantity,
+             filledQuantity: filledQuantity,
+             filledAmount: parseFloat(historyOrder.filledAmount || (price * filledQuantity)),
+             status: 'Filled',
+             createTime: new Date(historyOrder.timestamp || historyOrder.createTime || Date.now()),
+             processed: false  // 标记为未处理，让统计系统处理
+           });
+           
+           // 添加到订单管理器
+           const added = this.orderManager.addOrder(order);
+           if (!added) {
+             log(`添加订单到管理器失败: ${historyOrder.id}`, true);
+             skippedCount++;
+             continue;
+           }
+           
+           // 更新统计数据
+           const updated = this.tradeStats.updateStats(order);
+           if (updated) {
+             recoveredCount++;
+             const orderTime = new Date(historyOrder.timestamp || historyOrder.createTime || Date.now()).toLocaleString();
+             log(`恢复订单: ${historyOrder.id} - ${order.filledQuantity.toFixed(6)} ${this.tradingCoin} @ ${order.price.toFixed(2)} USDC (${orderTime})`);
+           } else {
+             log(`更新统计数据失败: ${historyOrder.id}`, true);
+             skippedCount++;
+           }
+           
+         } catch (orderError) {
+           log(`处理历史订单失败 ${historyOrder.id}: ${orderError.message}`, true);
+           skippedCount++;
+         }
+       }
+      
+             // 显示恢复结果
+       log(`\n===== 历史订单恢复完成 =====`);
+       log(`总历史订单: ${filledBuyOrders.length}`);
+       log(`成功恢复: ${recoveredCount}`);
+       log(`跳过订单: ${skippedCount}`);
+       
+       if (recoveredCount > 0) {
+         log(`总成交金额: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
+         log(`总成交数量: ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+         log(`平均成交价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+         log(`完成订单数: ${this.tradeStats.filledOrders}`);
+         
+         // 计算修正后的止盈价格
+         const takeProfitPercentage = this.config.trading?.takeProfitPercentage || 0.6;
+         const takeProfitPrice = this.tradeStats.averagePrice * (1 + takeProfitPercentage / 100);
+         log(`修正后止盈价格: ${takeProfitPrice.toFixed(2)} USDC (${takeProfitPercentage}%)`);
+       } else {
+         log('未恢复任何历史订单数据');
+       }
+       log('================================\n');
+      
+    } catch (error) {
+      log(`恢复历史订单数据失败: ${error.message}`, true);
+      // 不抛出错误，让系统继续运行
+    }
   }
   
   /**

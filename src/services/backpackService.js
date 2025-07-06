@@ -368,7 +368,7 @@ class BackpackService {
    * @param {number} limit - 返回记录数量限制
    * @returns {Promise<Array>} 订单历史记录列表
    */
-  async getOrderHistory(symbol = this.symbol, limit = 50) {
+  async getOrderHistory(symbol = this.symbol, limit = 200) {
     try {
       this.logger?.log(`获取${symbol}订单历史记录...`);
       
