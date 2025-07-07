@@ -122,3 +122,19 @@
 [7/7/2025, 2:22:57 AM] 价格更新: BTC_USDC = 109480.2 USDC 
 [7/7/2025, 2:23:01 AM] 轮询获取价格: 109480.2 USDC
 [7/7/2025, 2:23:21 AM] 轮询获取价格: 109455.2 USDC
+[7/7/2025, 2:23:55 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:23:55 AM] 3秒后重试...
+[7/7/2025, 2:23:58 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:23:58 AM] 3秒后重试...
+[7/7/2025, 2:24:01 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:24:01 AM] 3秒后重试...
+[7/7/2025, 2:24:01 AM] 轮询获取价格: 109455.1 USDC
+[7/7/2025, 2:24:04 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:24:04 AM] 3秒后重试...
+[7/7/2025, 2:24:07 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:24:07 AM] 撤销订单失败: Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:24:07 AM] 所有WebSocket连接已关闭并清理完成
+[7/7/2025, 2:24:07 AM] 已停止价格监控
+[7/7/2025, 2:24:07 AM] 平均成交价格: 0.00 USDC
+[7/7/2025, 2:24:07 AM] 统计数据最后更新: 无
+[7/7/2025, 2:24:07 AM] 已处理订单数量: 0
