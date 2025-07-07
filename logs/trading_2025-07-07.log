@@ -49,3 +49,21 @@
 [7/7/2025, 2:12:25 AM] 轮询获取价格: 109532.3 USDC
 [7/7/2025, 2:12:30 AM] 轮询获取价格: 109491.8 USDC
 [7/7/2025, 2:12:35 AM] 轮询获取价格: 109491.8 USDC
+[7/7/2025, 2:12:39 AM] 正在停止应用程序...
+[7/7/2025, 2:12:39 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:39 AM] 3秒后重试...
+[7/7/2025, 2:12:42 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:42 AM] 3秒后重试...
+[7/7/2025, 2:12:45 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:45 AM] 3秒后重试...
+[7/7/2025, 2:12:48 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:48 AM] 3秒后重试...
+[7/7/2025, 2:12:51 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:51 AM] 取消所有订单失败: Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:51 AM] 撤销订单失败: Cannot read properties of undefined (reading 'CancelOpenOrders')
+[7/7/2025, 2:12:51 AM] 所有WebSocket连接已关闭并清理完成
+[7/7/2025, 2:12:51 AM] 已成交订单: 0
+[7/7/2025, 2:12:51 AM] 统计数据最后更新: 无
+[7/7/2025, 2:12:51 AM] 已处理订单数量: 0
+[7/7/2025, 2:12:51 AM] ==================
+
