@@ -1,4 +1,4 @@
-const { BackpackClient } = require('../../backpack_exchange-main/backpack_client');
+const { BackpackClient } = require('./backpackClient');
 const { log } = require('../utils/logger');
 const TimeUtils = require('../utils/timeUtils');
 const axios = require('axios');
@@ -8,34 +8,6 @@ const crypto = require('crypto');
  * Backpack交易所API服务类 - 负责处理API调用
  */
 class BackpackService {
-  /**
-   * 🔧 智能交易对格式检测
-   * 根据不同币种返回正确的交易对格式
-   * @param {string} coin - 币种符号
-   * @returns {string} - 交易对格式
-   */
-  getSymbolForCoin(coin) {
-    // 交易对映射表 - 与TradingApp保持一致
-    const symbolMapping = {
-      'ETH': 'ETH_USD',    // ETH使用USD计价
-      'BTC': 'BTC_USDC',   // BTC使用USDC计价
-      'SOL': 'SOL_USDC',   // SOL使用USDC计价
-      'USDT': 'USDT_USDC', // USDT使用USDC计价
-      'DOGE': 'DOGE_USDC', // DOGE使用USDC计价
-      'ADA': 'ADA_USDC',   // ADA使用USDC计价
-      'AVAX': 'AVAX_USDC', // AVAX使用USDC计价
-      'MATIC': 'MATIC_USDC', // MATIC使用USDC计价
-      'LINK': 'LINK_USDC', // LINK使用USDC计价
-      'UNI': 'UNI_USDC',   // UNI使用USDC计价
-    };
-    
-    // 返回映射的交易对，如果没有映射则默认使用USDC
-    const symbol = symbolMapping[coin] || `${coin}_USDC`;
-    if (this.logger?.log) {
-      this.logger.log(`🔧 币种 ${coin} 映射到交易对: ${symbol}`);
-    }
-    return symbol;
-  }
   /**
    * 构造函数
    * @param {Object} config - 配置对象
