@@ -1,4 +1,5 @@
 const BackpackService = require('./services/backpackService');
+const ReconciliationService = require('./services/reconciliationService');
 const PriceMonitor = require('./core/priceMonitor');
 const TradingStrategy = require('./core/tradingStrategy');
 const OrderManagerService = require('./core/orderManager');
@@ -31,6 +32,14 @@ class TradingApp {
     // 确保使用同一套统计实例
     this.orderManagerService.orderManager = this.orderManager;
     this.orderManagerService.tradeStats = this.tradeStats;
+    
+    // 初始化对账服务
+    this.reconciliationService = new ReconciliationService(
+      this.backpackService, 
+      this.tradeStats, 
+      this.config, 
+      this.logger
+    );
     
     // 初始化价格监控器
     this.priceMonitor = new PriceMonitor({
@@ -233,6 +242,35 @@ class TradingApp {
       } else {
         log('📋 正常启动模式：恢复历史订单数据');
         await this.loadHistoricalOrders();
+      }
+      
+      // 执行自动对账 - 确保账户余额与本地统计一致
+      const reconciliationEnabled = this.config.reconciliation?.enabled && 
+                                   this.config.reconciliation?.autoSyncOnStartup;
+      
+      if (reconciliationEnabled) {
+        log('🔄 开始执行启动对账...');
+        const reconcileResult = await this.reconciliationService.reconcilePosition();
+        
+        if (reconcileResult.success) {
+          // 生成并显示对账报告
+          const report = this.reconciliationService.generateReconciliationReport(reconcileResult);
+          if (this.config.reconciliation?.logDetailedReport) {
+            log(report);
+          }
+          
+          if (reconcileResult.needSync) {
+            log('⚡ 对账完成，统计数据已自动校正');
+          } else {
+            log('✅ 对账通过，数据一致性良好');
+          }
+        } else {
+          log(`⚠️  对账失败: ${reconcileResult.error}`, true);
+          log('继续启动，但建议手动检查账户数据一致性');
+        }
+      } else {
+        log('ℹ️  自动对账功能已禁用，跳过对账步骤');
+        log('提示：可在配置文件中启用 reconciliation.enabled 和 reconciliation.autoSyncOnStartup');
       }
       
       return true;
@@ -1319,6 +1357,11 @@ class TradingApp {
     if (this.orderManagerService) {
       this.orderManagerService.orderManager = this.orderManager;
       this.orderManagerService.tradeStats = this.tradeStats;
+    }
+    
+    // 重新初始化对账服务，确保使用重置后的统计实例
+    if (this.reconciliationService) {
+      this.reconciliationService.tradeStats = this.tradeStats;
     }
     
     // 确保WebSocket资源被正确清理

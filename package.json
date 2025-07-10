@@ -15,7 +15,9 @@
     "dev": "node src/index.js",
     "single": "node start_single.js",
     "dual": "node start_dual.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-reconciliation": "node test_reconciliation.js",
+    "test-reconciliation-auto": "node test_reconciliation.js --auto"
   },
   "repository": {
     "type": "git",
