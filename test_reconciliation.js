@@ -42,7 +42,13 @@ async function testReconciliation() {
         enabled: true,
         autoSyncOnStartup: true,
         forceSync: false, // 测试模式不强制同步
-        logDetailedReport: true
+        logDetailedReport: true,
+        tolerances: {
+          "BTC": 0.0001,
+          "ETH": 0.001,
+          "SOL": 0.01,
+          "DEFAULT": 0.0001
+        }
       };
     } else {
       console.log('✅ 对账功能已启用');

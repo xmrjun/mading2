@@ -167,22 +167,50 @@ class ReconciliationService {
   async handlePositiveGap(gapAmount, realBalance) {
     try {
       log(`正在处理余额缺口，需要补充 ${gapAmount.toFixed(6)} ${this.tradingCoin} 的买入记录`);
+      log(`分析可能原因:`);
+      log(`   1. 部分成交订单未被统计到`);
+      log(`   2. 历史订单查询不完整`);
+      log(`   3. 从其他地方转入的${this.tradingCoin}`);
       
       // 获取用于补充的均价
       const averagePrice = await this.getAveragePriceForGap();
       
       if (!averagePrice || averagePrice <= 0) {
-        log('❌ 无法获取有效的均价用于补充买单', true);
-        return { success: false, error: '无法获取均价' };
+        log('❌ 无法获取有效的参考价格，跳过虚拟买单补充', true);
+        log('🔄 改为直接同步数量，但保持原有成本不变');
+        
+        // 直接同步数量，但不增加成本
+        this.tradeStats.totalFilledQuantity = realBalance;
+        
+        // 重新计算均价（如果原本有成本的话）
+        if (this.tradeStats.totalFilledAmount > 0 && this.tradeStats.totalFilledQuantity > 0) {
+          this.tradeStats.averagePrice = this.tradeStats.totalFilledAmount / this.tradeStats.totalFilledQuantity;
+        }
+        
+        this.tradeStats.lastUpdateTime = new Date();
+        
+        log(`⚠️  已强制同步数量，但未增加成本`);
+        log(`   新的累计数量: ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+        log(`   保持原有金额: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
+        log(`   新的平均价格: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+        log(`📝 建议手动检查这部分${this.tradingCoin}的来源`);
+        
+        return {
+          success: true,
+          action: 'quantity_sync_only',
+          message: '已同步数量但未增加成本（无有效参考价格）',
+          gapAmount,
+          note: '建议手动确认额外资产来源'
+        };
       }
 
       // 计算虚拟买单的金额
       const virtualAmount = gapAmount * averagePrice;
       
       log(`📝 创建虚拟买单补充记录:`);
-      log(`   数量: ${gapAmount.toFixed(6)} ${this.tradingCoin}`);
-      log(`   价格: ${averagePrice.toFixed(2)} USDC`);
-      log(`   金额: ${virtualAmount.toFixed(2)} USDC`);
+      log(`   补充数量: ${gapAmount.toFixed(6)} ${this.tradingCoin}`);
+      log(`   参考价格: ${averagePrice.toFixed(2)} USDC（基于现有买入均价）`);
+      log(`   补充金额: ${virtualAmount.toFixed(2)} USDC`);
 
       // 直接更新统计数据
       this.tradeStats.totalFilledQuantity = realBalance;
@@ -278,30 +306,33 @@ class ReconciliationService {
    */
   async getAveragePriceForGap() {
     try {
-      // 1. 如果已有统计数据，使用现有均价
+      // 1. 优先使用现有统计数据的均价
       if (this.tradeStats.averagePrice > 0) {
-        log(`使用现有统计均价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+        log(`使用现有买入统计均价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
         return this.tradeStats.averagePrice;
       }
 
-      // 2. 如果没有统计数据，尝试获取最新市场价格
+      // 2. 如果没有本地统计数据，说明是首次启动，尝试获取最新市场价格
       try {
         const ticker = await this.backpackService.getTicker(`${this.tradingCoin}_USDC`);
         if (ticker && ticker.lastPrice) {
           const marketPrice = parseFloat(ticker.lastPrice);
-          log(`使用当前市场价格: ${marketPrice.toFixed(2)} USDC`);
+          log(`首次启动无买入记录，使用当前市场价格: ${marketPrice.toFixed(2)} USDC`);
+          log(`⚠️  建议: 这可能表示账户中的币种来自其他渠道（转入/其他交易所等）`);
           return marketPrice;
         }
       } catch (priceError) {
         log(`获取市场价格失败: ${priceError.message}`, true);
       }
 
-      // 3. 如果都失败了，提示用户手动输入（在这里我们使用一个合理的默认值）
-      const defaultPrice = this.getDefaultPrice();
-      log(`⚠️  无法自动获取均价，使用默认价格: ${defaultPrice.toFixed(2)} USDC`);
-      log(`建议: 如需精确对账，请手动设置均价`);
+      // 3. 最后的备用方案 - 返回null表示无法获取有效价格
+      log(`❌ 无法获取有效的参考价格用于对账`, true);
+      log(`建议解决方案:`);
+      log(`   1. 确保有买入交易记录`);
+      log(`   2. 检查网络连接和API访问`);
+      log(`   3. 或手动设置初始买入记录`);
       
-      return defaultPrice;
+      return null;
       
     } catch (error) {
       log(`获取均价失败: ${error.message}`, true);
@@ -309,27 +340,7 @@ class ReconciliationService {
     }
   }
 
-  /**
-   * 获取默认价格（基于配置或常用价格）
-   * @returns {number} 默认价格
-   */
-  getDefaultPrice() {
-    // 优先使用配置文件中的设置
-    if (this.config.reconciliation && this.config.reconciliation.defaultPrices) {
-      const configPrices = this.config.reconciliation.defaultPrices;
-      return configPrices[this.tradingCoin] || configPrices.DEFAULT || 50000;
-    }
-    
-    // 备用：可以根据不同币种设置不同的默认价格
-    const defaultPrices = {
-      'BTC': 60000,
-      'ETH': 3000,
-      'SOL': 100,
-      'BNB': 400
-    };
-    
-    return defaultPrices[this.tradingCoin] || 50000; // 如果没有预设，返回一个通用默认值
-  }
+
 
   /**
    * 计算允许的误差范围

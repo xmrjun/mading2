@@ -20,21 +20,14 @@
     "reconciliation": {
         "enabled": true,
         "autoSyncOnStartup": true,
+        "forceSync": true,
+        "logDetailedReport": true,
         "tolerances": {
             "BTC": 0.0001,
             "ETH": 0.001,
             "SOL": 0.01,
             "DEFAULT": 0.0001
-        },
-        "defaultPrices": {
-            "BTC": 60000,
-            "ETH": 3000,
-            "SOL": 100,
-            "BNB": 400,
-            "DEFAULT": 50000
-        },
-        "forceSync": true,
-        "logDetailedReport": true
+        }
     },
     "advanced": {
         "minOrderAmount": 10,
