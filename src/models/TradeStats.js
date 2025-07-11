@@ -163,6 +163,98 @@ class TradeStats {
   isOrderProcessed(orderId) {
     return this.processedOrderIds.has(orderId);
   }
+  
+  /**
+   * 更新部分成交统计数据
+   * 用于处理订单的部分成交增量，确保实时统计
+   * @param {string} orderId - 订单ID
+   * @param {number} newFilledQuantity - 新增成交数量
+   * @param {number} newFilledAmount - 新增成交金额
+   * @returns {boolean} 是否更新成功
+   */
+  updatePartialFillStats(orderId, newFilledQuantity, newFilledAmount) {
+    if (!orderId || !newFilledQuantity || !newFilledAmount) {
+      if (typeof log === 'function') {
+        log(`❌ [统计] 部分成交数据无效: orderId=${orderId}, quantity=${newFilledQuantity}, amount=${newFilledAmount}`, true);
+      }
+      return false;
+    }
+    
+    // 转换为数字类型并验证
+    const quantity = parseFloat(newFilledQuantity);
+    const amount = parseFloat(newFilledAmount);
+    
+    if (isNaN(quantity) || isNaN(amount) || quantity <= 0 || amount <= 0) {
+      if (typeof log === 'function') {
+        log(`❌ [统计] 部分成交数据不合理: quantity=${quantity}, amount=${amount}`, true);
+      }
+      return false;
+    }
+    
+    // 🔑 关键：增量更新统计数据
+    this.totalFilledQuantity += quantity;
+    this.totalFilledAmount += amount;
+    
+    // 重新计算平均价格
+    if (this.totalFilledQuantity > 0) {
+      this.averagePrice = this.totalFilledAmount / this.totalFilledQuantity;
+    }
+    
+    this.lastUpdateTime = new Date();
+    
+    if (typeof log === 'function') {
+      log(`✅ [统计] 部分成交统计已更新:`);
+      log(`   订单ID: ${orderId}`);
+      log(`   新增数量: ${quantity.toFixed(6)}`);
+      log(`   新增金额: ${amount.toFixed(2)} USDC`);
+      log(`   累计数量: ${this.totalFilledQuantity.toFixed(6)}`);
+      log(`   累计金额: ${this.totalFilledAmount.toFixed(2)} USDC`);
+      log(`   新均价: ${this.averagePrice.toFixed(2)} USDC`);
+    }
+    
+    return true;
+  }
+  
+  /**
+   * 手动添加虚拟买单到统计数据
+   * 用于对账时补齐统计数据
+   * @param {number} quantity - 数量
+   * @param {number} price - 价格
+   * @returns {boolean} 是否添加成功
+   */
+  addVirtualOrder(quantity, price) {
+    if (!quantity || !price || quantity <= 0 || price <= 0) {
+      if (typeof log === 'function') {
+        log(`❌ [统计] 虚拟订单数据无效: quantity=${quantity}, price=${price}`, true);
+      }
+      return false;
+    }
+    
+    const amount = quantity * price;
+    
+    // 更新统计数据
+    this.totalFilledQuantity += quantity;
+    this.totalFilledAmount += amount;
+    this.filledOrders += 1; // 虚拟订单计数
+    
+    // 重新计算平均价格
+    if (this.totalFilledQuantity > 0) {
+      this.averagePrice = this.totalFilledAmount / this.totalFilledQuantity;
+    }
+    
+    this.lastUpdateTime = new Date();
+    
+    if (typeof log === 'function') {
+      log(`✅ [统计] 虚拟订单已添加:`);
+      log(`   数量: ${quantity.toFixed(6)}`);
+      log(`   价格: ${price.toFixed(2)} USDC`);
+      log(`   金额: ${amount.toFixed(2)} USDC`);
+      log(`   订单数: ${this.filledOrders}`);
+      log(`   新均价: ${this.averagePrice.toFixed(2)} USDC`);
+    }
+    
+    return true;
+  }
 }
 
 module.exports = TradeStats; 

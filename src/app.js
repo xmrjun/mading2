@@ -80,8 +80,9 @@ class TradingApp {
         log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
       }
       
-      // 检查是否达到止盈条件 - 基于真实持仓进行检查
-      if (this.tradeStats.filledOrders > 0 && this.running && !this.takeProfitTriggered) {
+      // 🔑 关键修复：基于统计数据进行止盈检查，不依赖订单列表
+      // 只要有持仓且有均价就监控止盈，支持外部转入的币种
+      if (this.tradeStats.totalFilledQuantity > 0 && this.tradeStats.averagePrice > 0 && this.running && !this.takeProfitTriggered) {
         const takeProfitPercentage = this.config.trading.takeProfitPercentage;
         
         // 🔑 关键修复：实时检查真实持仓数量，防止手动卖出导致的数据不一致
@@ -194,9 +195,13 @@ class TradingApp {
           }
         }
       } else {
-        // 增强调试：记录止盈检查被跳过的原因
-        if (this.tradeStats.filledOrders === 0) {
-          // 无成交订单时不记录（避免日志过多）
+        // 🔑 异常情况高亮提示
+        if (this.tradeStats.totalFilledQuantity > 0 && this.tradeStats.averagePrice === 0) {
+          log(`🚨 [ERROR] 当前${this.tradingCoin}有余额但均价为0，止盈/统计功能已暂停！`, true);
+          log(`📢 [ERROR] 请手动补录买入均价或重置tradeStats！`, true);
+          log(`🔧 [ERROR] 解决方案：使用 --fresh 重新开始或手动设置均价`, true);
+        } else if (this.tradeStats.totalFilledQuantity === 0) {
+          // 无持仓时不记录（避免日志过多）
         } else if (!this.running) {
           log(`⚠️  止盈检查跳过: 应用未运行 (running=${this.running})`);
         } else if (this.takeProfitTriggered) {
@@ -213,6 +218,87 @@ class TradingApp {
     }
   }
   
+  /**
+   * 启动定时对账功能
+   * 每小时执行一次对账，防止长期运行时脱节
+   */
+  startScheduledReconciliation() {
+    const reconciliationEnabled = this.config.reconciliation?.enabled;
+    const scheduledReconciliationEnabled = this.config.reconciliation?.scheduledReconciliation !== false;
+    
+    if (!reconciliationEnabled || !scheduledReconciliationEnabled) {
+      log('ℹ️  定时对账功能已禁用');
+      return;
+    }
+    
+    const intervalMinutes = this.config.reconciliation?.scheduledIntervalMinutes || 60;
+    const intervalMs = intervalMinutes * 60 * 1000;
+    
+    log(`🕐 启动定时对账功能，间隔: ${intervalMinutes} 分钟`);
+    
+    this.reconciliationTimer = setInterval(async () => {
+      try {
+        log('\n🔄 [定时对账] 开始执行定时对账...');
+        const reconcileResult = await this.reconciliationService.reconcilePosition();
+        
+        if (reconcileResult.success) {
+          if (reconcileResult.needSync) {
+            log('⚡ [定时对账] 发现差异并已自动校正');
+            // 生成对账报告
+            const report = this.reconciliationService.generateReconciliationReport(reconcileResult);
+            log(report);
+          } else {
+            log('✅ [定时对账] 数据一致，无需同步');
+          }
+        } else {
+          log(`⚠️  [定时对账] 对账失败: ${reconcileResult.error}`, true);
+        }
+      } catch (error) {
+        log(`❌ [定时对账] 执行失败: ${error.message}`, true);
+      }
+    }, intervalMs);
+  }
+
+  /**
+   * 手动设置均价的方法
+   * @param {number} averagePrice - 手动设置的均价
+   */
+  async setManualAveragePrice(averagePrice) {
+    if (!averagePrice || averagePrice <= 0) {
+      log('❌ 无效的均价设置', true);
+      return false;
+    }
+    
+    try {
+      // 获取当前真实持仓
+      const realBalance = await this.getRealPositionBalance();
+      
+      if (realBalance <= 0) {
+        log('❌ 当前无持仓，无法设置均价', true);
+        return false;
+      }
+      
+      // 重新计算统计数据
+      const totalAmount = realBalance * averagePrice;
+      
+      this.tradeStats.totalFilledQuantity = realBalance;
+      this.tradeStats.totalFilledAmount = totalAmount;
+      this.tradeStats.averagePrice = averagePrice;
+      this.tradeStats.filledOrders = 1; // 设置为1笔虚拟订单
+      this.tradeStats.lastUpdateTime = new Date();
+      
+      log(`✅ 手动设置均价成功:`);
+      log(`   持仓数量: ${realBalance.toFixed(6)} ${this.tradingCoin}`);
+      log(`   设置均价: ${averagePrice.toFixed(2)} USDC`);
+      log(`   总成本: ${totalAmount.toFixed(2)} USDC`);
+      
+      return true;
+    } catch (error) {
+      log(`❌ 设置均价失败: ${error.message}`, true);
+      return false;
+    }
+  }
+
   /**
    * 获取真实持仓余额
    * @returns {Promise<number>} 真实持仓数量
@@ -432,6 +518,9 @@ class TradingApp {
       
       // 启动价格监控
       this.priceMonitor.startMonitoring(this.symbol);
+
+      // 🔑 启动定时对账功能
+      this.startScheduledReconciliation();
       
       // 添加轮询检查机制，每5秒检查一次价格数据，避免WebSocket回调失败的情况
       this.priceCheckInterval = setInterval(async () => {
@@ -539,6 +628,7 @@ class TradingApp {
       const timers = [
         this.monitoringInterval,
         this.priceCheckInterval,
+        this.reconciliationTimer,
         this.priceMonitor?.checkInterval,
         this.priceMonitor?.wsManager?.heartbeatInterval,
         this.priceMonitor?.wsManager?.reconnectTimeout
@@ -559,6 +649,7 @@ class TradingApp {
       // 重置定时器引用
       this.monitoringInterval = null;
       this.priceCheckInterval = null;
+      this.reconciliationTimer = null;
       if (this.priceMonitor) {
         this.priceMonitor.checkInterval = null;
         if (this.priceMonitor.wsManager) {
@@ -775,14 +866,20 @@ class TradingApp {
         // 继续处理，使用备用方法
       }
       
-      // 备用方法：遍历所有创建的订单，检查哪些已经不在未成交列表中
+      // 🔑 增强部分成交实时统计：检查所有订单的成交状态变化
       const filledOrders = [];
+      const partiallyFilledOrders = [];
+      
       for (const orderId of this.orderManager.getAllCreatedOrderIds()) {
-        if (!currentOpenOrderIds.has(orderId)) {
-          const order = this.orderManager.getOrder(orderId);
-          
-          // 如果订单存在且未处理，则视为已成交
-          if (order && !this.tradeStats.isOrderProcessed(orderId)) {
+        const order = this.orderManager.getOrder(orderId);
+        if (!order) continue;
+        
+        // 检查是否在未成交列表中
+        const isInOpenOrders = currentOpenOrderIds.has(orderId);
+        
+        if (!isInOpenOrders) {
+          // 订单不在未成交列表中，说明已完全成交
+          if (!this.tradeStats.isOrderProcessed(orderId)) {
             // 准备更新数据
             const updateData = {
               status: 'Filled'
@@ -804,7 +901,43 @@ class TradingApp {
             filledOrders.push(order);
             
             // 记录订单成交信息
-            log(`推断订单已成交: ${orderId} - ${order.quantity} ${this.tradingCoin} @ ${order.price} USDC`);
+            log(`🎯 [统计] 订单完全成交: ${orderId} - ${order.quantity} ${this.tradingCoin} @ ${order.price} USDC`);
+          }
+        } else {
+          // 订单还在未成交列表中，但可能有部分成交
+          const openOrder = openOrders.find(o => o.id === orderId);
+          if (openOrder) {
+            const apiFilledQuantity = parseFloat(openOrder.filledQuantity || 0);
+            const apiFilledAmount = parseFloat(openOrder.filledAmount || 0);
+            const previousFilledQuantity = parseFloat(order.filledQuantity || 0);
+            
+            // 🔑 关键：检查是否有新的部分成交
+            if (apiFilledQuantity > previousFilledQuantity) {
+              const newFilledQuantity = apiFilledQuantity - previousFilledQuantity;
+              const newFilledAmount = apiFilledAmount - parseFloat(order.filledAmount || 0);
+              
+              log(`📊 [统计] 检测到部分成交: ${orderId}`);
+              log(`   新成交数量: ${newFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+              log(`   新成交金额: ${newFilledAmount.toFixed(2)} USDC`);
+              
+              // 更新订单的成交信息
+              order.update({
+                filledQuantity: apiFilledQuantity,
+                filledAmount: apiFilledAmount,
+                status: apiFilledQuantity >= order.quantity ? 'Filled' : 'PartiallyFilled'
+              });
+              
+              // 🔑 关键：实时更新统计数据（只统计新增成交部分）
+              this.tradeStats.updatePartialFillStats(orderId, newFilledQuantity, newFilledAmount);
+              
+              partiallyFilledOrders.push({
+                order: order,
+                newFilledQuantity: newFilledQuantity,
+                newFilledAmount: newFilledAmount
+              });
+              
+              log(`✅ [统计] 部分成交统计已更新: 累计成交量 ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+            }
           }
         }
       }

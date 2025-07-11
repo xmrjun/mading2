@@ -125,6 +125,7 @@ class ReconciliationService {
 
   /**
    * 强制同步本地统计与真实余额
+   * 核心原则：余额为准，强制补齐包括均价和订单数
    * @param {number} realBalance - 交易所真实余额
    * @param {number} localAmount - 本地统计数量
    * @returns {Promise<Object>} 同步结果
@@ -133,27 +134,94 @@ class ReconciliationService {
     try {
       const difference = realBalance - localAmount;
       
-      if (realBalance > localAmount) {
-        // 余额大于统计，说明有部分买单没计入
-        log(`📈 余额大于统计 (+${difference.toFixed(6)} ${this.tradingCoin})`);
-        log('可能原因: 部分成交记录/老订单查询不到');
-        
-        return await this.handlePositiveGap(difference, realBalance);
-        
-      } else if (realBalance < localAmount) {
-        // 余额小于统计，可能有人工卖出或提币
-        log(`📉 余额小于统计 (-${Math.abs(difference).toFixed(6)} ${this.tradingCoin})`);
-        log('可能原因: 人工卖出/提币操作未被记录');
-        
-        return await this.handleNegativeGap(difference, realBalance);
-        
-      } else {
-        // 完全相等（理论上不会到这里，因为前面已经检查过）
+      log(`[SYNC] 💼 开始强制同步: 余额=${realBalance.toFixed(6)}, 本地=${localAmount.toFixed(6)}, 差异=${difference.toFixed(6)}`);
+      
+      if (Math.abs(difference) < 1e-8) {
+        log('✅ 余额完全一致，无需同步');
         return { success: true, action: 'no_change', message: '余额完全一致' };
       }
       
+      // 🔑 关键修复：余额为准，强制补齐统计数据
+      log(`� [SYNC] 强制补齐统计数据...`);
+      
+      // 1. 获取当前均价
+      let avgPrice = this.tradeStats.averagePrice || 0;
+      
+      if (!avgPrice || avgPrice === 0) {
+        // 没有均价，尝试获取当前市场价
+        try {
+          const ticker = await this.backpackService.getTicker(`${this.tradingCoin}_USDC`);
+          if (ticker && ticker.lastPrice) {
+            avgPrice = parseFloat(ticker.lastPrice);
+            log(`⚠️  [SYNC] 本地无均价，使用当前市场价: ${avgPrice.toFixed(2)} USDC`);
+            log(`📢 [SYNC] 警告：这可能表示账户中的币种来自其他渠道（转入/其他交易所等）`);
+          } else {
+            log(`❌ [SYNC] 无法获取有效价格，强制补齐失败！`, true);
+            log(`🔧 [SYNC] 请手动设置初始买入记录或使用 --fresh 重新开始`);
+            return { success: false, error: '无法获取参考价格' };
+          }
+        } catch (priceError) {
+          log(`❌ [SYNC] 获取市场价失败: ${priceError.message}`, true);
+          return { success: false, error: '获取参考价格失败' };
+        }
+      }
+      
+      // 2. 计算补齐或调整的金额
+      const patchAmount = difference * avgPrice;
+      
+      // 3. 强制同步数据
+      const originalAmount = this.tradeStats.totalFilledAmount || 0;
+      const originalQuantity = this.tradeStats.totalFilledQuantity || 0;
+      const originalOrders = this.tradeStats.filledOrders || 0;
+      
+      log(`📋 [SYNC] 原始数据:`);
+      log(`   数量: ${originalQuantity.toFixed(6)} ${this.tradingCoin}`);
+      log(`   金额: ${originalAmount.toFixed(2)} USDC`);
+      log(`   订单: ${originalOrders} 笔`);
+      log(`   均价: ${avgPrice.toFixed(2)} USDC`);
+      
+      // 4. 更新统计数据
+      this.tradeStats.totalFilledQuantity = realBalance;
+      this.tradeStats.totalFilledAmount = originalAmount + patchAmount;
+      this.tradeStats.filledOrders = originalOrders + 1; // 虚拟补单，增加1笔
+      
+      // 5. 重新计算平均价格
+      if (this.tradeStats.totalFilledQuantity > 0) {
+        this.tradeStats.averagePrice = this.tradeStats.totalFilledAmount / this.tradeStats.totalFilledQuantity;
+      } else {
+        this.tradeStats.averagePrice = 0;
+      }
+      
+      this.tradeStats.lastUpdateTime = new Date();
+      
+      log(`✅ [SYNC] 强制同步完成！`);
+      log(`� [SYNC] 新的统计数据:`);
+      log(`   数量: ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+      log(`   金额: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
+      log(`   订单: ${this.tradeStats.filledOrders} 笔`);
+      log(`   均价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+      
+      if (difference > 0) {
+        log(`📈 [SYNC] 补齐了 ${difference.toFixed(6)} ${this.tradingCoin}，价值 ${patchAmount.toFixed(2)} USDC`);
+      } else {
+        log(`📉 [SYNC] 调整了 ${Math.abs(difference).toFixed(6)} ${this.tradingCoin}，价值 ${Math.abs(patchAmount).toFixed(2)} USDC`);
+      }
+      
+      return {
+        success: true,
+        action: 'force_sync_complete',
+        message: '余额为准，强制同步完成',
+        difference,
+        patchAmount,
+        avgPrice,
+        newQuantity: this.tradeStats.totalFilledQuantity,
+        newAmount: this.tradeStats.totalFilledAmount,
+        newOrders: this.tradeStats.filledOrders,
+        newAvgPrice: this.tradeStats.averagePrice
+      };
+      
     } catch (error) {
-      log(`强制同步失败: ${error.message}`, true);
+      log(`❌ [SYNC] 强制同步失败: ${error.message}`, true);
       return { success: false, error: error.message };
     }
   }

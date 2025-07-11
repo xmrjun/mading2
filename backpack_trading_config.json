@@ -22,6 +22,8 @@
         "autoSyncOnStartup": true,
         "forceSync": true,
         "logDetailedReport": true,
+        "scheduledReconciliation": true,
+        "scheduledIntervalMinutes": 60,
         "tolerances": {
             "BTC": 0.0001,
             "ETH": 0.001,

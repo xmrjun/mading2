@@ -184,6 +184,97 @@ node start_single.js --fresh
 🎉 止盈条件达成！预计盈利: $25.00
 ```
 
+## 🔧 核心功能详解
+
+### 1. 完整启动对账系统
+
+**原理**：余额为准，强制补齐包括均价和订单数
+
+```javascript
+// 对账框架（按您的要求实现）
+async function reconcilePosition() {
+    // 1. 查余额
+    const realAmount = await api.getBalance('BTC');
+    
+    // 2. 查本地统计
+    const statsAmount = tradeStats.totalFilledQuantity;
+    
+    // 3. 如不一致，强制补齐
+    if (Math.abs(realAmount - statsAmount) > 1e-8) {
+        // 🔑 关键：用余额为准，补齐均价和订单数
+        const avgPrice = tradeStats.averagePrice || getCurrentMarketPrice();
+        const patchAmount = (realAmount - statsAmount) * avgPrice;
+        
+        tradeStats.totalFilledQuantity = realAmount;
+        tradeStats.totalFilledAmount += patchAmount;
+        tradeStats.averagePrice = tradeStats.totalFilledAmount / tradeStats.totalFilledQuantity;
+        tradeStats.filledOrders += 1; // 虚拟补单
+    }
+}
+```
+
+### 2. 部分成交实时统计
+
+**原理**：每次成交变化都实时更新统计，不等订单完成
+
+```javascript
+// 检测部分成交
+if (apiFilledQuantity > previousFilledQuantity) {
+    const newFilledQuantity = apiFilledQuantity - previousFilledQuantity;
+    const newFilledAmount = apiFilledAmount - previousFilledAmount;
+    
+    // 🔑 关键：实时更新统计数据（只统计新增部分）
+    tradeStats.updatePartialFillStats(orderId, newFilledQuantity, newFilledAmount);
+}
+```
+
+### 3. 基于统计数据止盈
+
+**原理**：只要有持仓+均价就监控，不依赖订单列表
+
+```javascript
+// 🔑 修复前：依赖订单列表
+if (this.tradeStats.filledOrders > 0 && this.running) {
+    // 只有订单列表有数据才止盈
+}
+
+// ✅ 修复后：基于统计数据
+if (this.tradeStats.totalFilledQuantity > 0 && this.tradeStats.averagePrice > 0) {
+    // 只要有持仓和均价就监控止盈
+    const profitPercent = (currentPrice - averagePrice) / averagePrice * 100;
+    if (profitPercent >= takeProfitPercent) {
+        // 执行止盈
+    }
+}
+```
+
+### 4. 异常情况处理
+
+**有余额但均价为0的情况**：
+
+```
+🚨 [ERROR] 当前BTC有余额但均价为0，止盈/统计功能已暂停！
+📢 [ERROR] 请手动补录买入均价或重置tradeStats！
+🔧 [ERROR] 解决方案：使用 --fresh 重新开始或手动设置均价
+```
+
+**手动设置均价方法**：
+
+```javascript
+// 在应用运行时调用
+await app.setManualAveragePrice(50000); // 设置均价为50000 USDC
+```
+
+### 5. 定时对账功能
+
+**自动执行**：每小时检查一次，防止长期脱节
+
+```
+🕐 启动定时对账功能，间隔: 60 分钟
+🔄 [定时对账] 开始执行定时对账...
+✅ [定时对账] 数据一致，无需同步
+```
+
 ## ⚙️ 配置说明
 
 ### 单策略配置 (`backpack_trading_config.json`)
@@ -213,6 +304,21 @@ node start_single.js --fresh
     "realTimePositionCheck": true,  // 启用实时持仓检查
     "positionDifferenceThreshold": 5 // 持仓差异阈值(%)
   }
+}
+```
+
+### 完整对账和统计增强配置
+```json
+{
+  "reconciliation": {
+    "enabled": true,                     // 启用对账功能
+    "autoSyncOnStartup": true,           // 启动时自动对账
+    "scheduledReconciliation": true,     // 启用定时对账
+    "scheduledIntervalMinutes": 60,      // 对账间隔(分钟)
+    "forceSync": true,                   // 强制同步差异
+    "logDetailedReport": true            // 详细日志
+  }
+}
 }
 ```
 
@@ -368,6 +474,14 @@ pm2 stop backpack-single
 - 🛡️ **数据安全**：对账功能仅调整本地统计，不执行实际交易
 
 ## 📝 最新更新
+
+### v4.2.0 (2025-01-15) - 完整对账和统计增强系统
+- 🎯 **完整启动对账**：余额为准，强制补齐均价和订单数（绝不只补数量）
+- 🕐 **定时对账功能**：每小时自动执行，防止长期运行脱节
+- 📊 **部分成交实时统计**：每次成交都实时更新，不等订单完成
+- 🔍 **基于统计数据止盈**：只要有持仓+均价就监控，不依赖订单列表
+- 🚨 **异常情况高亮**：有余额但均价为0时醒目提示
+- 🛠️ **手动补救功能**：提供手动设置均价的方法
 
 ### v4.1.0 (2025-01-15) - 实时持仓检查系统
 - 🎯 **实时持仓检查**：每次价格更新时自动检查真实持仓
