@@ -131,6 +131,47 @@ class TradingStrategy {
   }
 
   /**
+   * 检查价格是否仍然适合执行止盈
+   * @param {number} triggerPrice - 触发止盈时的价格
+   * @param {number} currentPrice - 当前价格
+   * @param {number} maxPriceDeviation - 最大价格偏差百分比 (默认2%)
+   * @returns {boolean} 是否仍然适合执行
+   */
+  isPriceStillValidForTakeProfit(triggerPrice, currentPrice, maxPriceDeviation = 2) {
+    if (!triggerPrice || !currentPrice) return false;
+    
+    const deviation = Math.abs((currentPrice - triggerPrice) / triggerPrice) * 100;
+    return deviation <= maxPriceDeviation;
+  }
+
+  /**
+   * 带价格验证的止盈判断
+   * @param {number} currentPrice - 当前价格
+   * @param {number} averagePrice - 平均买入价
+   * @param {number} takeProfitPercentage - 止盈百分比
+   * @param {number} priceAge - 价格数据年龄(秒)
+   * @returns {Object} 止盈判断结果
+   */
+  evaluateTakeProfitWithPriceValidation(currentPrice, averagePrice, takeProfitPercentage, priceAge = 0) {
+    // 基本止盈判断
+    const basicResult = this.isTakeProfitTriggered(currentPrice, averagePrice, takeProfitPercentage);
+    
+    // 价格数据时效性检查
+    const isPriceRecent = priceAge < 30; // 价格数据30秒内有效
+    
+    // 价格变化合理性检查
+    const priceChangePercent = ((currentPrice - averagePrice) / averagePrice) * 100;
+    const isReasonableChange = priceChangePercent <= takeProfitPercentage * 1.5; // 不超过目标的1.5倍
+    
+    return {
+      shouldTakeProfit: basicResult && isPriceRecent && isReasonableChange,
+      reason: basicResult ? (isPriceRecent ? (isReasonableChange ? 'valid' : 'price_too_high') : 'price_too_old') : 'threshold_not_met',
+      priceChangePercent,
+      priceAge
+    };
+  }
+
+  /**
    * 检查是否应该快速重启（用于高频交易）
    * @param {number} currentPrice - 当前价格
    * @param {number} averagePrice - 平均买入价格
