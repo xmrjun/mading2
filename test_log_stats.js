@@ -1,6 +1,13 @@
 const LogBasedStatsService = require('./src/services/logBasedStatsService');
-const TradeStats = require('./src/core/tradeStats');
-const config = require('./config/config');
+const TradeStats = require('./src/models/TradeStats');
+
+// 使用基本配置对象
+const config = {
+  trading: {
+    tradingCoin: 'BTC',
+    symbol: 'BTC_USDC'
+  }
+};
 
 /**
  * 测试日志统计系统

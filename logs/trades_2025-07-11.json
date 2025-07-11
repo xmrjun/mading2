@@ -1,0 +1,7 @@
+{"timestamp":"2025-07-11T14:25:57.637Z","action":"BUY_ORDER_CREATED","tradingCoin":"BTC","orderId":"ord_001","price":50000,"quantity":0.001}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"BUY_ORDER_FILLED","tradingCoin":"BTC","orderId":"ord_001","filledQuantity":0.001,"filledAmount":50,"avgPrice":50000}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"BUY_ORDER_CREATED","tradingCoin":"BTC","orderId":"ord_002","price":49000,"quantity":0.002}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"BUY_PARTIAL_FILLED","tradingCoin":"BTC","orderId":"ord_002","newFilledQuantity":0.001,"newFilledAmount":49}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"BUY_ORDER_FILLED","tradingCoin":"BTC","orderId":"ord_002","filledQuantity":0.002,"filledAmount":98,"avgPrice":49000}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"SELL_ORDER_FILLED","tradingCoin":"BTC","orderId":"ord_003","filledQuantity":0.0015,"filledAmount":75,"avgPrice":50000}
+{"timestamp":"2025-07-11T14:25:57.652Z","action":"STATS_UPDATED","tradingCoin":"BTC","totalQuantity":0,"averagePrice":0,"orderCount":0}
