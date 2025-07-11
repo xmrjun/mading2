@@ -592,8 +592,13 @@ class TradingApp {
       // 更新最后交易时间
       this.lastTradeTime = new Date();
       
-      // 启动止盈监控
-      this.startTakeProfitMonitoring();
+      // 启动止盈监控（仅在未运行时启动，避免重复重置状态）
+      if (!this.monitoringInterval) {
+        log('🎯 启动止盈监控系统...');
+        this.startTakeProfitMonitoring();
+      } else {
+        log('🎯 止盈监控已在运行，跳过重复启动');
+      }
       
       return successCount > 0;
     } catch (error) {
@@ -735,7 +740,8 @@ class TradingApp {
     
     // 监控变量
     let monitoringAttempts = 0;
-    this.takeProfitTriggered = false;
+    // ❌ 删除：不应该在这里重置止盈状态！
+    // this.takeProfitTriggered = false;  // 这行导致了止盈失效！
     let lastOrderCheckTime = Date.now();
     
     // 无订单成交自动重启相关变量
