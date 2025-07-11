@@ -84,6 +84,11 @@ class TradingApp {
       if (this.tradeStats.filledOrders > 0 && this.running && !this.takeProfitTriggered) {
         const takeProfitPercentage = this.config.trading.takeProfitPercentage;
         
+        // 增强调试：详细记录止盈检查状态
+        if (priceIncrease > (takeProfitPercentage * 0.8)) { // 接近止盈目标时开始详细日志
+          log(`🎯 止盈检查: 当前涨幅 ${priceIncrease.toFixed(3)}% | 目标 ${takeProfitPercentage}% | 进度 ${(priceIncrease/takeProfitPercentage*100).toFixed(1)}%`);
+        }
+        
         // 检查是否达到止盈条件
         const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
           priceInfo.price, 
@@ -92,7 +97,7 @@ class TradingApp {
         );
         
         if (takeProfitReached) {
-          log(`\n===== 止盈条件达成！=====`);
+          log(`\n===== 🎉 止盈条件达成！=====`);
           log(`当前价格: ${priceInfo.price} USDC`);
           log(`平均买入价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
           log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
@@ -103,6 +108,15 @@ class TradingApp {
           
           // 执行止盈操作
           this.executeTakeProfit();
+        }
+      } else {
+        // 增强调试：记录止盈检查被跳过的原因
+        if (this.tradeStats.filledOrders === 0) {
+          // 无成交订单时不记录（避免日志过多）
+        } else if (!this.running) {
+          log(`⚠️  止盈检查跳过: 应用未运行 (running=${this.running})`);
+        } else if (this.takeProfitTriggered) {
+          log(`⚠️  止盈检查跳过: 止盈已触发 (takeProfitTriggered=${this.takeProfitTriggered})`);
         }
       }
     }
@@ -303,9 +317,11 @@ class TradingApp {
       // 添加轮询检查机制，每5秒检查一次价格数据，避免WebSocket回调失败的情况
       this.priceCheckInterval = setInterval(() => {
         try {
+          let priceInfo = null;
+          
           // 直接从priceMonitor获取价格数据
           if (this.priceMonitor.currentPrice > 0) {
-            const priceInfo = {
+            priceInfo = {
               price: this.priceMonitor.currentPrice,
               symbol: this.symbol,
               source: 'WebSocket轮询',
@@ -313,18 +329,6 @@ class TradingApp {
             };
             
             log(`轮询获取价格: ${priceInfo.price} USDC`);
-            
-            // 更新当前价格信息
-            this.currentPriceInfo = priceInfo;
-            
-            // 计算涨跌幅
-            if (this.tradeStats.averagePrice > 0) {
-              const priceIncrease = ((priceInfo.price - this.tradeStats.averagePrice) / this.tradeStats.averagePrice) * 100;
-              this.currentPriceInfo.increase = priceIncrease;
-            }
-            
-            // 更新显示
-            this.displayAccountInfo();
           }
           // 如果priceMonitor没有价格数据，但WebSocketManager有
           else if (this.priceMonitor.wsManager && 
@@ -332,7 +336,7 @@ class TradingApp {
                   this.priceMonitor.wsManager.lastPriceData.price > 0) {
             
             const wsData = this.priceMonitor.wsManager.lastPriceData;
-            const priceInfo = {
+            priceInfo = {
               price: wsData.price,
               symbol: wsData.symbol || this.symbol,
               source: 'WebSocketManager轮询',
@@ -340,18 +344,11 @@ class TradingApp {
             };
             
             log(`轮询从WebSocketManager获取价格: ${priceInfo.price} USDC`);
-            
-            // 更新当前价格信息
-            this.currentPriceInfo = priceInfo;
-            
-            // 计算涨跌幅
-            if (this.tradeStats.averagePrice > 0) {
-              const priceIncrease = ((priceInfo.price - this.tradeStats.averagePrice) / this.tradeStats.averagePrice) * 100;
-              this.currentPriceInfo.increase = priceIncrease;
-            }
-            
-            // 更新显示
-            this.displayAccountInfo();
+          }
+          
+          // ✅ 关键修复：调用完整的handlePriceUpdate方法，确保止盈检查正常运行
+          if (priceInfo) {
+            this.handlePriceUpdate(priceInfo);
           }
         } catch (error) {
           log(`价格轮询错误: ${error.message}`, true);
