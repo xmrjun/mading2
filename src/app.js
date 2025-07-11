@@ -406,6 +406,10 @@ class TradingApp {
       });
       this.tradingStrategy = new TradingStrategy(this.logger, this.config);
       
+      // 🔑 初始化基于日志的统计服务
+      const LogBasedStatsService = require('./services/logBasedStatsService');
+      this.logBasedStats = new LogBasedStatsService(this.tradeStats, this.config, this.logger);
+      
       log('所有服务初始化完成');
       
       // 记录应用启动时间
@@ -463,33 +467,43 @@ class TradingApp {
         await this.loadHistoricalOrders();
       }
       
-      // 执行自动对账 - 确保账户余额与本地统计一致
-      const reconciliationEnabled = this.config.reconciliation?.enabled && 
-                                   this.config.reconciliation?.autoSyncOnStartup;
+      // 🔑 优先使用日志恢复统计（更可靠）
+      log('📋 尝试从本地日志恢复交易统计...');
+      const logRecoveryResult = await this.logBasedStats.recoverStatsFromLogs();
       
-      if (reconciliationEnabled) {
-        log('🔄 开始执行启动对账...');
-        const reconcileResult = await this.reconciliationService.reconcilePosition();
+      if (logRecoveryResult.success && logRecoveryResult.recovered) {
+        log('✅ 从日志成功恢复统计数据');
+        log(`📊 恢复了 ${logRecoveryResult.tradeCount} 条交易记录`);
+      } else {
+        log('📋 日志恢复结果：' + logRecoveryResult.message);
         
-        if (reconcileResult.success) {
-          // 生成并显示对账报告
-          const report = this.reconciliationService.generateReconciliationReport(reconcileResult);
-          if (this.config.reconciliation?.logDetailedReport) {
-            log(report);
-          }
+        // 如果日志恢复失败，回退到API对账
+        const reconciliationEnabled = this.config.reconciliation?.enabled && 
+                                     this.config.reconciliation?.autoSyncOnStartup;
+        
+        if (reconciliationEnabled) {
+          log('🔄 回退到API对账...');
+          const reconcileResult = await this.reconciliationService.reconcilePosition();
           
-          if (reconcileResult.needSync) {
-            log('⚡ 对账完成，统计数据已自动校正');
+          if (reconcileResult.success) {
+            // 生成并显示对账报告
+            const report = this.reconciliationService.generateReconciliationReport(reconcileResult);
+            if (this.config.reconciliation?.logDetailedReport) {
+              log(report);
+            }
+            
+            if (reconcileResult.needSync) {
+              log('⚡ API对账完成，统计数据已自动校正');
+            } else {
+              log('✅ API对账通过，数据一致性良好');
+            }
           } else {
-            log('✅ 对账通过，数据一致性良好');
+            log(`⚠️  API对账失败: ${reconcileResult.error}`, true);
+            log('将继续使用本地统计数据启动');
           }
         } else {
-          log(`⚠️  对账失败: ${reconcileResult.error}`, true);
-          log('继续启动，但建议手动检查账户数据一致性');
+          log('ℹ️  API对账功能已禁用，将从零开始');
         }
-      } else {
-        log('ℹ️  自动对账功能已禁用，跳过对账步骤');
-        log('提示：可在配置文件中启用 reconciliation.enabled 和 reconciliation.autoSyncOnStartup');
       }
       
       return true;
@@ -785,9 +799,19 @@ class TradingApp {
             // 增加总订单计数 - 确保使用主应用的统计实例
             this.tradeStats.totalOrders++;
             
+            // 🔑 记录买单创建到日志
+            this.logBasedStats.logBuyOrderCreated(result.id, order.price, order.quantity);
+            
             // 如果订单立即成交，更新统计
             if (newOrder.status === 'Filled') {
               this.tradeStats.updateStats(newOrder);
+              // 🔑 记录买单成交到日志
+              this.logBasedStats.logBuyOrderFilled(
+                result.id, 
+                order.quantity, 
+                order.price * order.quantity, 
+                order.price
+              );
             }
             
             // 在终端显示订单创建信息（确保显示）
@@ -930,6 +954,9 @@ class TradingApp {
               // 🔑 关键：实时更新统计数据（只统计新增成交部分）
               this.tradeStats.updatePartialFillStats(orderId, newFilledQuantity, newFilledAmount);
               
+              // 🔑 记录部分成交到日志
+              this.logBasedStats.logBuyPartialFilled(orderId, newFilledQuantity, newFilledAmount);
+              
               partiallyFilledOrders.push({
                 order: order,
                 newFilledQuantity: newFilledQuantity,
@@ -948,6 +975,14 @@ class TradingApp {
         const result = this.tradeStats.updateStats(order);
         if (result) {
           updatedCount++;
+          // 🔑 记录完全成交到日志
+          this.logBasedStats.logBuyOrderFilled(
+            order.id, 
+            order.quantity, 
+            order.price * order.quantity, 
+            order.price
+          );
+          
           // 如果统计更新成功，记录成交信息
           log(`更新交易统计: 成交订单数=${this.tradeStats.filledOrders}, 均价=${this.tradeStats.averagePrice.toFixed(2)} USDC`);
         }
@@ -961,6 +996,9 @@ class TradingApp {
         this.logger.logToFile(`总成交数量: ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
         this.logger.logToFile(`总成交金额: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
         this.logger.logToFile(`平均成交价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+        
+        // 🔑 记录统计更新到日志
+        this.logBasedStats.logStatsUpdated();
       }
       
       // 更新订单管理器中的待处理订单ID列表
