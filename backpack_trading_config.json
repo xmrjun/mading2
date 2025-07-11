@@ -35,7 +35,9 @@
         "checkOrdersIntervalMinutes": 10,
         "monitorIntervalSeconds": 15,
         "sellNonUsdcMinValue": 10,
-        "noFillRestartMinutes": 1
+        "noFillRestartMinutes": 1,
+        "realTimePositionCheck": true,
+        "positionDifferenceThreshold": 5
     },
     "quantityPrecisions": {
         "BTC": 5,

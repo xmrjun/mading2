@@ -65,7 +65,7 @@ class TradingApp {
    * 处理价格更新
    * @param {Object} priceInfo - 价格信息
    */
-  handlePriceUpdate(priceInfo) {
+  async handlePriceUpdate(priceInfo) {
     // 确保从WebSocket接收到的价格能够被更新到应用状态
     this.currentPriceInfo = priceInfo;
     
@@ -80,34 +80,118 @@ class TradingApp {
         log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
       }
       
-      // 检查是否达到止盈条件 - 只有当有成交的买单时才检查止盈
+      // 检查是否达到止盈条件 - 基于真实持仓进行检查
       if (this.tradeStats.filledOrders > 0 && this.running && !this.takeProfitTriggered) {
         const takeProfitPercentage = this.config.trading.takeProfitPercentage;
         
-        // 增强调试：详细记录止盈检查状态
-        if (priceIncrease > (takeProfitPercentage * 0.8)) { // 接近止盈目标时开始详细日志
-          log(`🎯 止盈检查: 当前涨幅 ${priceIncrease.toFixed(3)}% | 目标 ${takeProfitPercentage}% | 进度 ${(priceIncrease/takeProfitPercentage*100).toFixed(1)}%`);
-        }
+        // 🔑 关键修复：实时检查真实持仓数量，防止手动卖出导致的数据不一致
+        const realTimeCheckEnabled = this.config.advanced?.realTimePositionCheck !== false;
         
-        // 检查是否达到止盈条件
-        const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
-          priceInfo.price, 
-          this.tradeStats.averagePrice, 
-          takeProfitPercentage
-        );
-        
-        if (takeProfitReached) {
-          log(`\n===== 🎉 止盈条件达成！=====`);
-          log(`当前价格: ${priceInfo.price} USDC`);
-          log(`平均买入价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
-          log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
-          log('准备卖出获利...');
+        if (realTimeCheckEnabled) {
+          try {
+            const realBalance = await this.getRealPositionBalance();
+            
+            if (realBalance <= 0) {
+              log(`⚠️  真实持仓为0，跳过止盈检查 (实际持仓: ${realBalance})`);
+              return;
+            }
+            
+            // 如果真实持仓与本地统计差异过大，先进行校正
+            const localPosition = this.tradeStats.totalFilledQuantity;
+            const positionDifference = Math.abs(realBalance - localPosition);
+            const diffPercentage = localPosition > 0 ? (positionDifference / localPosition) * 100 : 0;
+            const threshold = this.config.advanced?.positionDifferenceThreshold || 5;
+            
+            if (diffPercentage > threshold) { // 差异超过阈值需要校正
+              log(`🔄 检测到持仓差异: 本地统计 ${localPosition.toFixed(6)} vs 真实持仓 ${realBalance.toFixed(6)} (差异${diffPercentage.toFixed(1)}%)`);
+              
+              // 快速校正本地统计（只调整数量，保持平均价格）
+              const ratio = realBalance / localPosition;
+              this.tradeStats.totalFilledQuantity = realBalance;
+              log(`✅ 已校正本地统计: 持仓数量 ${realBalance.toFixed(6)} ${this.tradingCoin}`);
+            }
+            
+            // 基于真实持仓计算止盈
+            const currentPosition = realBalance;
+            const averagePrice = this.tradeStats.averagePrice;
+            
+            // 增强调试：详细记录止盈检查状态
+            if (priceIncrease > (takeProfitPercentage * 0.8)) { // 接近止盈目标时开始详细日志
+              log(`🎯 止盈检查: 当前涨幅 ${priceIncrease.toFixed(3)}% | 目标 ${takeProfitPercentage}% | 进度 ${(priceIncrease/takeProfitPercentage*100).toFixed(1)}%`);
+              log(`   真实持仓: ${currentPosition.toFixed(6)} ${this.tradingCoin} | 平均价格: ${averagePrice.toFixed(2)} USDC`);
+            }
+            
+            // 检查是否达到止盈条件
+            const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
+              priceInfo.price, 
+              averagePrice, 
+              takeProfitPercentage
+            );
+            
+            if (takeProfitReached) {
+              const potentialProfit = (priceInfo.price - averagePrice) * currentPosition;
+              
+              log(`\n===== 🎉 止盈条件达成！=====`);
+              log(`当前价格: ${priceInfo.price} USDC`);
+              log(`平均买入价: ${averagePrice.toFixed(2)} USDC`);
+              log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
+              log(`真实持仓: ${currentPosition.toFixed(6)} ${this.tradingCoin}`);
+              log(`预计盈利: ${potentialProfit.toFixed(2)} USDC`);
+              log('准备卖出获利...');
+              
+              // 设置止盈触发标志，避免重复触发
+              this.takeProfitTriggered = true;
+              
+              // 执行止盈操作
+              this.executeTakeProfit();
+            }
+          } catch (error) {
+            log(`获取真实持仓失败，使用本地统计: ${error.message}`);
+            
+            // 如果无法获取真实持仓，回退到原来的逻辑
+            if (priceIncrease > (takeProfitPercentage * 0.8)) {
+              log(`🎯 止盈检查(本地统计): 当前涨幅 ${priceIncrease.toFixed(3)}% | 目标 ${takeProfitPercentage}% | 进度 ${(priceIncrease/takeProfitPercentage*100).toFixed(1)}%`);
+            }
+            
+            const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
+              priceInfo.price, 
+              this.tradeStats.averagePrice, 
+              takeProfitPercentage
+            );
+            
+            if (takeProfitReached) {
+              log(`\n===== 🎉 止盈条件达成！=====`);
+              log(`当前价格: ${priceInfo.price} USDC`);
+              log(`平均买入价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+              log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
+              log('准备卖出获利...');
+              
+              this.takeProfitTriggered = true;
+              this.executeTakeProfit();
+            }
+          }
+        } else {
+          // 不启用实时检查，使用本地统计
+          if (priceIncrease > (takeProfitPercentage * 0.8)) {
+            log(`🎯 止盈检查(本地统计): 当前涨幅 ${priceIncrease.toFixed(3)}% | 目标 ${takeProfitPercentage}% | 进度 ${(priceIncrease/takeProfitPercentage*100).toFixed(1)}%`);
+          }
           
-          // 设置止盈触发标志，避免重复触发
-          this.takeProfitTriggered = true;
+          const takeProfitReached = this.tradingStrategy.isTakeProfitTriggered(
+            priceInfo.price, 
+            this.tradeStats.averagePrice, 
+            takeProfitPercentage
+          );
           
-          // 执行止盈操作
-          this.executeTakeProfit();
+          if (takeProfitReached) {
+            log(`\n===== 🎉 止盈条件达成！=====`);
+            log(`当前价格: ${priceInfo.price} USDC`);
+            log(`平均买入价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+            log(`涨幅: ${priceIncrease.toFixed(2)}% >= 止盈点: ${takeProfitPercentage}%`);
+            log('准备卖出获利...');
+            
+            this.takeProfitTriggered = true;
+            this.executeTakeProfit();
+          }
         }
       } else {
         // 增强调试：记录止盈检查被跳过的原因
@@ -129,6 +213,35 @@ class TradingApp {
     }
   }
   
+  /**
+   * 获取真实持仓余额
+   * @returns {Promise<number>} 真实持仓数量
+   */
+  async getRealPositionBalance() {
+    try {
+      const balances = await this.backpackService.getBalances();
+      if (!balances || !Array.isArray(balances)) {
+        throw new Error('无法获取账户余额');
+      }
+      
+      // 查找对应币种的余额
+      const coinBalance = balances.find(b => b.symbol === this.tradingCoin);
+      if (!coinBalance) {
+        return 0;
+      }
+      
+      // 计算总余额（可用 + 冻结）
+      const available = parseFloat(coinBalance.available) || 0;
+      const locked = parseFloat(coinBalance.locked) || 0;
+      const total = available + locked;
+      
+      return total;
+    } catch (error) {
+      log(`获取真实持仓余额失败: ${error.message}`, true);
+      throw error;
+    }
+  }
+
   /**
    * 执行止盈操作
    */
@@ -219,7 +332,13 @@ class TradingApp {
       this.lastStatusLogTime = new Date();
       
       // 设置价格监控回调
-      this.priceMonitor.onPriceUpdate = (priceInfo) => this.handlePriceUpdate(priceInfo);
+      this.priceMonitor.onPriceUpdate = async (priceInfo) => {
+        try {
+          await this.handlePriceUpdate(priceInfo);
+        } catch (error) {
+          log(`价格更新处理失败: ${error.message}`, true);
+        }
+      };
       
       // 尝试获取初始价格
       try {
@@ -315,7 +434,7 @@ class TradingApp {
       this.priceMonitor.startMonitoring(this.symbol);
       
       // 添加轮询检查机制，每5秒检查一次价格数据，避免WebSocket回调失败的情况
-      this.priceCheckInterval = setInterval(() => {
+      this.priceCheckInterval = setInterval(async () => {
         try {
           let priceInfo = null;
           
@@ -348,7 +467,11 @@ class TradingApp {
           
           // ✅ 关键修复：调用完整的handlePriceUpdate方法，确保止盈检查正常运行
           if (priceInfo) {
-            this.handlePriceUpdate(priceInfo);
+            try {
+              await this.handlePriceUpdate(priceInfo);
+            } catch (error) {
+              log(`价格更新处理失败: ${error.message}`, true);
+            }
           }
         } catch (error) {
           log(`价格轮询错误: ${error.message}`, true);
