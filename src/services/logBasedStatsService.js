@@ -68,6 +68,10 @@ class LogBasedStatsService {
         return `卖单成交: ${data.orderId} - ${data.filledQuantity} ${this.tradingCoin} @ ${data.avgPrice} USDC`;
       case 'STATS_UPDATED':
         return `统计更新: 持仓 ${data.totalQuantity} ${this.tradingCoin}, 平均价 ${data.averagePrice} USDC, 订单数 ${data.orderCount}`;
+      case 'POSITION_DETECTED':
+        return `持仓检测: 发现 ${data.positionQuantity} ${this.tradingCoin}, 均价 ${data.averagePrice} USDC`;
+      case 'MANUAL_AVERAGE_PRICE_SET':
+        return `手动设置均价: ${data.quantity} ${this.tradingCoin} @ ${data.averagePrice} USDC (总价值: ${data.totalAmount} USDC)`;
       default:
         return `${action}: ${JSON.stringify(data)}`;
     }
@@ -221,6 +225,28 @@ class LogBasedStatsService {
             // 注意：卖出不减少成本，只减少数量
             stats.lastUpdateTime = trade.timestamp;
             break;
+            
+          case 'POSITION_DETECTED':
+            // 持仓检测记录 - 通常这会覆盖之前的统计
+            // 但如果已经有其他交易记录，则应该累加
+            if (stats.orderCount === 0) {
+              // 如果还没有其他交易记录，直接使用检测到的持仓
+              stats.totalQuantity = parseFloat(trade.positionQuantity || 0);
+              stats.averagePrice = parseFloat(trade.averagePrice || 0);
+              stats.totalAmount = stats.totalQuantity * stats.averagePrice;
+              stats.orderCount = 1; // 标记为已有持仓
+            }
+            stats.lastUpdateTime = trade.timestamp;
+            break;
+            
+          case 'MANUAL_AVERAGE_PRICE_SET':
+            // 手动设置均价记录 - 这会覆盖之前的统计
+            stats.totalQuantity = parseFloat(trade.quantity || 0);
+            stats.averagePrice = parseFloat(trade.averagePrice || 0);
+            stats.totalAmount = parseFloat(trade.totalAmount || 0);
+            stats.orderCount = 1; // 标记为已有持仓
+            stats.lastUpdateTime = trade.timestamp;
+            break;
         }
       } catch (error) {
         log(`处理交易记录失败: ${error.message}`, true);
@@ -300,6 +326,29 @@ class LogBasedStatsService {
       totalQuantity: this.tradeStats.totalFilledQuantity,
       averagePrice: this.tradeStats.averagePrice,
       orderCount: this.tradeStats.filledOrders
+    });
+  }
+
+  /**
+   * 记录持仓检测结果
+   */
+  logPositionDetected(positionQuantity, averagePrice) {
+    this.writeTradeLog('POSITION_DETECTED', {
+      positionQuantity: parseFloat(positionQuantity),
+      averagePrice: parseFloat(averagePrice || 0),
+      detectedAt: new Date().toISOString()
+    });
+  }
+
+  /**
+   * 记录手动设置均价
+   */
+  logManualAveragePriceSet(averagePrice, quantity) {
+    this.writeTradeLog('MANUAL_AVERAGE_PRICE_SET', {
+      averagePrice: parseFloat(averagePrice),
+      quantity: parseFloat(quantity),
+      totalAmount: parseFloat(averagePrice) * parseFloat(quantity),
+      setAt: new Date().toISOString()
     });
   }
 

@@ -181,6 +181,11 @@ class TradingApp {
       log(`   设置均价: ${averagePrice.toFixed(2)} USDC`);
       log(`   总成本: ${totalAmount.toFixed(2)} USDC`);
       
+      // 🔑 记录手动设置均价到日志
+      if (this.logBasedStats) {
+        this.logBasedStats.logManualAveragePriceSet(averagePrice, currentQuantity);
+      }
+      
       return true;
     } catch (error) {
       log(`❌ 设置均价失败: ${error.message}`, true);
@@ -319,6 +324,68 @@ class TradingApp {
           await new Promise(resolve => setTimeout(resolve, 2000));
         } catch (error) {
           log(`取消现有订单失败: ${error.message}`, true);
+        }
+        
+        // 🔑 检查是否启用了持仓检测功能
+        const skipFirstOrderIfPositioned = this.config.actions?.skipFirstOrderIfPositioned;
+        
+        if (skipFirstOrderIfPositioned) {
+          log('🔍 正在检查账户持仓...');
+          try {
+            const position = await this.backpackService.getPosition(this.tradingCoin);
+            const positionQuantity = parseFloat(position?.available || position?.total || '0');
+            const threshold = this.config.advanced?.positionDetectionThreshold || 0.001;
+            
+            if (positionQuantity > threshold) {
+              log(`⚠️  检测到当前持仓 ${this.tradingCoin} 不为0: ${positionQuantity.toFixed(6)}`);
+              log(`📊 根据配置，已跳过自动挂首单！`);
+              
+              // 🔑 补录持仓统计数据
+              this.tradeStats.totalFilledQuantity = positionQuantity;
+              this.tradeStats.filledOrders = 1; // 标记为已有持仓
+              
+              // 🔑 设置标志，阻止后续的首单挂单
+              this.skipFirstOrder = true;
+              
+              // 尝试从市场获取当前价格作为默认均价
+              try {
+                const ticker = await this.backpackService.getTicker(this.apiSymbol);
+                if (ticker && ticker.lastPrice) {
+                  const marketPrice = parseFloat(ticker.lastPrice);
+                  this.tradeStats.averagePrice = marketPrice;
+                  this.tradeStats.totalFilledAmount = positionQuantity * marketPrice;
+                  
+                  log(`📈 使用市场价格 ${marketPrice.toFixed(2)} USDC 作为默认均价`);
+                  log(`💰 预估持仓价值: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
+                } else {
+                  log('⚠️  无法获取市场价格，建议手动设置均价');
+                }
+              } catch (priceError) {
+                log(`获取市场价格失败: ${priceError.message}`);
+              }
+              
+              // 🔑 如果启用了手动均价设置，提供提示
+              if (this.config.advanced?.allowManualAveragePrice) {
+                log('💡 提示：如需设置准确的持仓均价，请使用 setManualAveragePrice 方法');
+              }
+              
+              // 🔑 记录持仓检测结果到日志
+              if (this.logBasedStats) {
+                this.logBasedStats.logPositionDetected(positionQuantity, this.tradeStats.averagePrice);
+              }
+              
+            } else {
+              log(`✅ 账户 ${this.tradingCoin} 持仓为空 (${positionQuantity.toFixed(6)})，将正常执行首单策略`);
+              this.skipFirstOrder = false;
+            }
+          } catch (positionError) {
+            log(`获取持仓信息失败: ${positionError.message}`, true);
+            log('⚠️  由于无法获取持仓信息，将按正常流程执行首单策略');
+            this.skipFirstOrder = false;
+          }
+        } else {
+          log('🔄 未启用持仓检测功能，将正常执行首单策略');
+          this.skipFirstOrder = false;
         }
         
         log('🔄 从当前状态开始，不统计历史订单');
@@ -546,6 +613,23 @@ class TradingApp {
   async executeTrade() {
     try {
       log('开始执行交易策略...');
+      
+      // 🔑 检查是否需要跳过首单挂单
+      if (this.skipFirstOrder) {
+        log('🚫 检测到已有持仓，跳过首单挂单操作');
+        log('📊 当前持仓统计:');
+        log(`   持仓数量: ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+        log(`   持仓均价: ${this.tradeStats.averagePrice.toFixed(2)} USDC`);
+        log(`   持仓价值: ${this.tradeStats.totalFilledAmount.toFixed(2)} USDC`);
+        
+        // 🔑 启动止盈监控，即使没有挂单也要监控止盈
+        if (!this.monitoringInterval) {
+          log('🎯 启动止盈监控系统...');
+          this.startTakeProfitMonitoring();
+        }
+        
+        return true; // 返回成功，表示策略已执行完成
+      }
       
       // 检查当前价格
       if (!this.currentPrice || this.currentPrice <= 0) {

@@ -15,7 +15,8 @@
         "sellNonUsdcAssets": true,
         "cancelAllOrders": true,
         "restartAfterTakeProfit": true,
-        "autoRestartNoFill": true
+        "autoRestartNoFill": true,
+        "skipFirstOrderIfPositioned": true
     },
     "reconciliation": {
         "enabled": true,
@@ -39,7 +40,9 @@
         "sellNonUsdcMinValue": 10,
         "noFillRestartMinutes": 1,
         "realTimePositionCheck": true,
-        "positionDifferenceThreshold": 5
+        "positionDifferenceThreshold": 5,
+        "positionDetectionThreshold": 0.001,
+        "allowManualAveragePrice": true
     },
     "quantityPrecisions": {
         "BTC": 5,
