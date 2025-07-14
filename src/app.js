@@ -150,6 +150,125 @@ class TradingApp {
 
 
   /**
+   * 更新马丁格尔策略的总投资金额
+   */
+  updateMartingaleTotalAmount() {
+    if (!this.martingaleEnabled) return;
+    
+    // 根据上次交易结果调整投资金额
+    if (this.lastTradeResult === 'loss') {
+      // 上次亏损，增加投资金额
+      this.consecutiveLosses++;
+      this.currentTotalAmount *= this.martingaleMultiplier;
+      
+      log(`🎲 马丁格尔策略: 上次亏损，增加投资金额`);
+      log(`   连续亏损: ${this.consecutiveLosses}次`);
+      log(`   当前投资金额: ${this.currentTotalAmount} USDC`);
+      
+      // 检查是否超过最大连续亏损限制
+      if (this.consecutiveLosses >= this.maxConsecutiveLosses) {
+        log(`🚫 马丁格尔策略: 连续亏损达到上限(${this.maxConsecutiveLosses}次)，暂停交易`, true);
+        this.running = false;
+        return;
+      }
+    } else if (this.lastTradeResult === 'profit') {
+      // 上次盈利，重置投资金额
+      log(`✅ 马丁格尔策略: 上次盈利，重置投资金额`);
+      this.consecutiveLosses = 0;
+      this.currentTotalAmount = this.baseTotalAmount;
+      log(`   重置投资金额: ${this.currentTotalAmount} USDC`);
+    }
+    
+    // 首次执行或重置后
+    if (this.lastTradeResult === null) {
+      log(`🎯 马丁格尔策略: 首次执行，使用基础投资金额: ${this.currentTotalAmount} USDC`);
+    }
+  }
+  
+  /**
+   * 显示马丁格尔策略状态
+   */
+  displayMartingaleStatus() {
+    if (!this.martingaleEnabled) return;
+    
+    log('\n===== 🎲 马丁格尔策略状态 =====');
+    log(`启用状态: ${this.martingaleEnabled ? '启用' : '禁用'}`);
+    log(`基础投资金额: ${this.baseTotalAmount} USDC`);
+    log(`当前投资金额: ${this.currentTotalAmount} USDC`);
+    log(`递增倍数: ${this.martingaleMultiplier}倍`);
+    log(`连续亏损次数: ${this.consecutiveLosses}/${this.maxConsecutiveLosses}`);
+    log(`上次交易结果: ${this.lastTradeResult || '无'}`);
+    
+    if (this.consecutiveLosses > 0) {
+      const totalInvested = this.calculateTotalInvested();
+      log(`累计投资: ${totalInvested.toFixed(2)} USDC`);
+      log(`风险提示: ${this.consecutiveLosses >= 3 ? '🔴 高风险' : '🟡 中等风险'}`);
+    }
+    
+    log('===============================\n');
+  }
+  
+  /**
+   * 计算累计投资金额
+   */
+  calculateTotalInvested() {
+    let total = 0;
+    let amount = this.baseTotalAmount;
+    
+    for (let i = 0; i <= this.consecutiveLosses; i++) {
+      total += amount;
+      amount *= this.martingaleMultiplier;
+    }
+    
+    return total;
+  }
+  
+  /**
+   * 处理交易结果（用于马丁格尔策略）
+   */
+  handleTradeResult(isProfit) {
+    if (!this.martingaleEnabled) return;
+    
+    this.lastTradeResult = isProfit ? 'profit' : 'loss';
+    
+    if (isProfit) {
+      log(`📈 交易结果: 盈利 - 马丁格尔策略将重置`);
+    } else {
+      log(`📉 交易结果: 亏损 - 马丁格尔策略将增加投资金额`);
+    }
+  }
+  
+  /**
+   * 处理马丁格尔策略的盈利情况
+   */
+  handleMartingaleProfit() {
+    if (!this.martingaleEnabled) return;
+    
+    this.handleTradeResult(true);
+    
+    // 计算累计投资和盈利
+    const totalInvested = this.calculateTotalInvested();
+    const profit = this.tradeStats.totalFilledAmount * (this.currentPriceInfo?.increase || 0) / 100;
+    
+    log('🎉 马丁格尔策略止盈成功！');
+    log(`   本轮累计投资: ${totalInvested.toFixed(2)} USDC`);
+    log(`   预计盈利: ${profit.toFixed(2)} USDC`);
+    log(`   投资金额将重置为: ${this.baseTotalAmount} USDC`);
+  }
+  
+  /**
+   * 处理马丁格尔策略的亏损情况
+   */
+  handleMartingaleLoss() {
+    if (!this.martingaleEnabled) return;
+    
+    this.handleTradeResult(false);
+    
+    log('⚠️ 马丁格尔策略检测到亏损');
+    log(`   下次投资金额将调整为: ${this.currentTotalAmount * this.martingaleMultiplier} USDC`);
+  }
+
+  /**
    * 启动定时对账功能（已禁用，使用日志统计系统）
    */
   startScheduledReconciliation() {
@@ -214,6 +333,11 @@ class TradingApp {
       
       // 执行卖出操作
       await this.sellAllPosition();
+      
+      // 🎲 马丁格尔策略：记录盈利，重置投资金额
+      if (this.martingaleEnabled) {
+        this.handleMartingaleProfit();
+      }
       
       // 清除监控间隔
       if (this.monitoringInterval) {
@@ -623,11 +747,11 @@ class TradingApp {
    */
   async executeTrade() {
     try {
-      log(`开始执行交易策略: ${this.tradingMode}`);
+      log('开始执行交易策略...');
       
-      // 如果是马丁格尔策略，使用专门的执行逻辑
-      if (this.tradingMode === 'martingale') {
-        return await this.executeMartingaleTrade();
+      // 🎲 马丁格尔逻辑：根据上次交易结果调整总投资金额
+      if (this.martingaleEnabled) {
+        this.updateMartingaleTotalAmount();
       }
       
       // 🔑 检查是否需要跳过首单挂单
@@ -665,7 +789,7 @@ class TradingApp {
       
       // 从配置中获取交易参数
       const maxDropPercentage = this.config.trading.maxDropPercentage;
-      const totalAmount = this.config.trading.totalAmount;
+      const totalAmount = this.currentTotalAmount; // 🎲 使用马丁格尔调整后的总投资金额
       const orderCount = this.config.trading.orderCount;
       const incrementPercentage = this.config.trading.incrementPercentage;
       const minOrderAmount = this.config.advanced?.minOrderAmount || 10;
@@ -759,6 +883,11 @@ class TradingApp {
       }
       
       log(`成功创建 ${successCount}/${orders.length} 个订单`);
+      
+      // 🎲 显示马丁格尔状态
+      if (this.martingaleEnabled && successCount > 0) {
+        this.displayMartingaleStatus();
+      }
       
       // 更新最后交易时间
       this.lastTradeTime = new Date();
@@ -1577,6 +1706,11 @@ class TradingApp {
    */
   resetAppState() {
     log('\n===== 重置应用状态 =====');
+    
+    // 🎲 马丁格尔策略：如果不是止盈重启，则视为亏损，增加投资金额
+    if (this.martingaleEnabled && this.lastTradeResult !== 'profit') {
+      this.handleMartingaleLoss();
+    }
     
     // 重置全局配置的一些状态 - 确保统一重置
     this.scriptStartTime = new Date();
