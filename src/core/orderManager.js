@@ -100,9 +100,9 @@ class OrderManagerService {
           
           // 创建买入订单
           const response = await this.backpackService.createBuyOrder(
-            this.symbol, 
             order.price, 
-            order.quantity, 
+            order.quantity,
+            this.symbol, 
             this.tradingCoin
           );
           
