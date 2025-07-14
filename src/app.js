@@ -2,7 +2,6 @@ const BackpackService = require('./services/backpackService');
 // const ReconciliationService = require('./services/reconciliationService'); // 已禁用，使用日志统计
 const PriceMonitor = require('./core/priceMonitor');
 const TradingStrategy = require('./core/tradingStrategy');
-const MartingaleStrategy = require('./core/martingaleStrategy');
 const OrderManagerService = require('./core/orderManager');
 const { Order, OrderManager } = require('./models/Order');
 const TradeStats = require('./models/TradeStats');
@@ -25,7 +24,6 @@ class TradingApp {
     // 初始化组件
     this.backpackService = new BackpackService(config, this.logger);
     this.tradingStrategy = new TradingStrategy(this.logger, this.config);
-    this.martingaleStrategy = new MartingaleStrategy(this.logger, this.config);
     this.orderManager = new OrderManager();
     this.tradeStats = new TradeStats();
     
@@ -51,11 +49,14 @@ class TradingApp {
     this.tradingCoin = null;
     this.currentPriceInfo = null;
     
-    // 马丁格尔策略专用状态
-    this.priceHistory = [];
-    this.maxPriceHistory = config.martingale?.priceHistoryLength || 10;
-    this.currentTrade = null;
-    this.tradingMode = config.trading?.strategy || 'incremental';
+    // 马丁格尔策略状态
+    this.martingaleEnabled = config.trading?.martingaleEnabled || false;
+    this.martingaleMultiplier = config.trading?.martingaleMultiplier || 2;
+    this.maxConsecutiveLosses = config.trading?.maxConsecutiveLosses || 5;
+    this.baseTotalAmount = config.trading?.totalAmount || 151;
+    this.currentTotalAmount = this.baseTotalAmount;
+    this.consecutiveLosses = 0;
+    this.lastTradeResult = null;
     this.monitoringInterval = null;
     this.scriptStartTime = new Date();
     this.cycleLogFile = null;
@@ -71,24 +72,6 @@ class TradingApp {
   async handlePriceUpdate(priceInfo) {
     // 确保从WebSocket接收到的价格能够被更新到应用状态
     this.currentPriceInfo = priceInfo;
-    
-    // 记录价格历史（用于马丁格尔策略）
-    if (priceInfo && priceInfo.price) {
-      this.priceHistory.push({
-        price: priceInfo.price,
-        timestamp: new Date()
-      });
-      
-      // 保持价格历史长度
-      if (this.priceHistory.length > this.maxPriceHistory) {
-        this.priceHistory.shift();
-      }
-    }
-    
-    // 如果使用马丁格尔策略，检查止盈止损条件
-    if (this.tradingMode === 'martingale' && this.currentTrade) {
-      await this.checkMartingaleStopConditions();
-    }
     
     // 计算价格涨幅
     if (priceInfo && this.tradeStats.averagePrice > 0) {
@@ -164,244 +147,7 @@ class TradingApp {
     }
   }
   
-  /**
-   * 检查马丁格尔策略的止盈止损条件
-   */
-  async checkMartingaleStopConditions() {
-    if (!this.currentTrade || !this.currentPriceInfo) return;
-    
-    const currentPrice = this.currentPriceInfo.price;
-    const entryPrice = this.currentTrade.entryPrice;
-    
-    // 检查止盈条件
-    if (this.martingaleStrategy.shouldTakeProfit(currentPrice, entryPrice)) {
-      log('🎯 马丁格尔策略触发止盈条件');
-      await this.executeMartingaleTakeProfit();
-      return;
-    }
-    
-    // 检查止损条件
-    if (this.martingaleStrategy.shouldStopLoss(currentPrice, entryPrice)) {
-      log('🛑 马丁格尔策略触发止损条件');
-      await this.executeMartingaleStopLoss();
-      return;
-    }
-  }
-  
-  /**
-   * 执行马丁格尔策略止盈
-   */
-  async executeMartingaleTakeProfit() {
-    try {
-      if (!this.currentTrade) return;
-      
-      // 平仓当前订单
-      await this.closeMartingalePosition(true);
-      
-      // 重置马丁格尔策略
-      this.martingaleStrategy.resetStrategy();
-      
-      log('✅ 马丁格尔策略止盈完成，策略已重置');
-    } catch (error) {
-      log(`马丁格尔止盈执行失败: ${error.message}`, true);
-    }
-  }
-  
-  /**
-   * 执行马丁格尔策略止损
-   */
-  async executeMartingaleStopLoss() {
-    try {
-      if (!this.currentTrade) return;
-      
-      // 平仓当前订单
-      await this.closeMartingalePosition(false);
-      
-      // 处理交易结果（亏损）
-      await this.martingaleStrategy.handleTradeResult(
-        this.currentTrade.order,
-        this.currentPriceInfo.price,
-        false
-      );
-      
-      // 如果没有超过风险限制，继续下一笔交易
-      if (!this.martingaleStrategy.shouldStopTrading()) {
-        log('🔄 马丁格尔策略继续下一笔交易');
-        setTimeout(() => this.executeMartingaleTrade(), 1000);
-      } else {
-        log('🚫 马丁格尔策略达到风险限制，已停止');
-        this.martingaleStrategy.stop();
-      }
-      
-      log('⚠️ 马丁格尔策略止损完成');
-    } catch (error) {
-      log(`马丁格尔止损执行失败: ${error.message}`, true);
-    }
-  }
-  
-  /**
-   * 平仓马丁格尔策略持仓
-   */
-  async closeMartingalePosition(isProfit) {
-    try {
-      if (!this.currentTrade) return;
-      
-      const order = this.currentTrade.order;
-      const oppositeDirection = order.side === 'Bid' ? 'Ask' : 'Bid';
-      
-      // 创建平仓订单
-      const closeOrder = await this.backpackService.createOrder({
-        symbol: this.apiSymbol,
-        side: oppositeDirection,
-        orderType: 'Market',
-        quantity: order.quantity.toFixed(6)
-      });
-      
-      if (closeOrder.success) {
-        log(`${isProfit ? '止盈' : '止损'}平仓订单已创建: ${closeOrder.orderId}`);
-        
-        // 处理交易结果
-        await this.martingaleStrategy.handleTradeResult(
-          order,
-          this.currentPriceInfo.price,
-          isProfit
-        );
-        
-        // 清除当前交易
-        this.currentTrade = null;
-      }
-    } catch (error) {
-      log(`平仓失败: ${error.message}`, true);
-    }
-  }
 
-  /**
-   * 执行马丁格尔策略交易
-   */
-  async executeMartingaleTrade() {
-    try {
-      // 检查当前价格
-      if (!this.currentPrice || this.currentPrice <= 0) {
-        log('警告: 当前价格无效，无法执行马丁格尔策略');
-        return false;
-      }
-      
-      // 启动马丁格尔策略
-      if (!this.martingaleStrategy.isActive) {
-        this.martingaleStrategy.start();
-      }
-      
-      // 检查是否应该停止交易
-      if (this.martingaleStrategy.shouldStopTrading()) {
-        log('🚫 马丁格尔策略达到风险限制，停止交易');
-        return false;
-      }
-      
-      // 获取价格历史
-      const priceHistory = this.priceHistory.map(p => p.price);
-      
-      // 计算下一个马丁格尔订单
-      const order = this.martingaleStrategy.calculateNextOrder(
-        this.currentPrice,
-        this.apiSymbol,
-        this.tradingCoin,
-        priceHistory
-      );
-      
-      if (!order) {
-        log('⚠️ 马丁格尔策略无法生成有效订单');
-        return false;
-      }
-      
-      // 取消所有现有订单
-      try {
-        await this.backpackService.cancelAllOrders(this.apiSymbol);
-        log('已取消所有现有订单');
-      } catch (error) {
-        log(`取消所有订单失败: ${error.message}`);
-      }
-      
-      // 执行马丁格尔订单
-      const result = await this.backpackService.createOrder({
-        symbol: this.apiSymbol,
-        side: order.side,
-        orderType: order.orderType,
-        price: order.price.toFixed(2),
-        quantity: order.quantity.toFixed(6)
-      });
-      
-      if (result && result.id) {
-        // 记录当前交易
-        this.currentTrade = {
-          order: order,
-          entryPrice: order.price,
-          orderId: result.id,
-          startTime: new Date(),
-          sequence: order.martingaleSequence,
-          direction: order.martingaleDirection
-        };
-        
-        log(`✅ 马丁格尔订单已创建: ${result.id}`);
-        log(`📊 策略状态: 序列${order.martingaleSequence}, 方向${order.martingaleDirection}, 金额${order.amount} USDC`);
-        
-        // 显示马丁格尔策略状态
-        this.displayMartingaleStatus();
-        
-        // 启动监控
-        if (!this.monitoringInterval) {
-          this.startMartingaleMonitoring();
-        }
-        
-        return true;
-      } else {
-        log('❌ 马丁格尔订单创建失败');
-        return false;
-      }
-      
-    } catch (error) {
-      log(`马丁格尔策略执行失败: ${error.message}`, true);
-      return false;
-    }
-  }
-  
-  /**
-   * 启动马丁格尔策略监控
-   */
-  startMartingaleMonitoring() {
-    if (this.monitoringInterval) {
-      clearInterval(this.monitoringInterval);
-    }
-    
-    this.monitoringInterval = setInterval(async () => {
-      try {
-        if (this.currentTrade) {
-          await this.checkMartingaleStopConditions();
-        }
-      } catch (error) {
-        log(`马丁格尔监控错误: ${error.message}`, true);
-      }
-    }, 5000); // 每5秒检查一次
-    
-    log('🎯 马丁格尔策略监控已启动');
-  }
-  
-  /**
-   * 显示马丁格尔策略状态
-   */
-  displayMartingaleStatus() {
-    const status = this.martingaleStrategy.getStatus();
-    
-    log('\n===== 🎲 马丁格尔策略状态 =====');
-    log(`当前序列: ${status.currentSequence}`);
-    log(`连续亏损: ${status.consecutiveLosses}`);
-    log(`当前金额: ${status.currentAmount} USDC`);
-    log(`交易方向: ${status.currentDirection || '未确定'}`);
-    log(`总投资: ${status.totalInvested.toFixed(2)} USDC`);
-    log(`总盈亏: ${status.totalProfitLoss.toFixed(2)} USDC`);
-    log(`剩余风险: ${status.riskStatus.remainingRisk.toFixed(2)} USDC`);
-    log(`是否停止: ${status.riskStatus.shouldStop ? '是' : '否'}`);
-    log('==============================\n');
-  }
 
   /**
    * 启动定时对账功能（已禁用，使用日志统计系统）

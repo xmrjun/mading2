@@ -6,21 +6,13 @@
     "trading": {
         "tradingCoin": "ETH",
         "maxDropPercentage": 7,
-        "totalAmount": 2000,
+        "totalAmount": 151,
         "orderCount": 8,
         "incrementPercentage": 50,
         "takeProfitPercentage": 0.25,
-        "strategy": "martingale"
-    },
-    "martingale": {
-        "baseAmount": 151,
-        "maxConsecutiveLosses": 5,
-        "totalRiskLimit": 10000,
-        "multiplier": 2,
-        "stopLossPercentage": 2,
-        "takeProfitPercentage": 1,
-        "priceHistoryLength": 10,
-        "trendAnalysisEnabled": true
+        "martingaleEnabled": true,
+        "martingaleMultiplier": 2,
+        "maxConsecutiveLosses": 5
     },
     "actions": {
         "sellNonUsdcAssets": true,
