@@ -4,12 +4,23 @@
         "publicKey": "----------------------------"
     },
     "trading": {
-        "tradingCoin": "BTC",
+        "tradingCoin": "ETH",
         "maxDropPercentage": 7,
         "totalAmount": 2000,
         "orderCount": 8,
         "incrementPercentage": 50,
-        "takeProfitPercentage": 0.25
+        "takeProfitPercentage": 0.25,
+        "strategy": "martingale"
+    },
+    "martingale": {
+        "baseAmount": 151,
+        "maxConsecutiveLosses": 5,
+        "totalRiskLimit": 10000,
+        "multiplier": 2,
+        "stopLossPercentage": 2,
+        "takeProfitPercentage": 1,
+        "priceHistoryLength": 10,
+        "trendAnalysisEnabled": true
     },
     "actions": {
         "sellNonUsdcAssets": true,
