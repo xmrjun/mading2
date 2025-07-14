@@ -40,6 +40,8 @@
 - `takeProfitPercentage`: 盈利0.25%自动止盈
 
 ## 🚀 使用方法
+git clone https://github.com/xmrjun/mading2.git
+cd mading2
 
 ### 安装依赖
 ```bash
