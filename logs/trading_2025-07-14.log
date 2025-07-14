@@ -1,0 +1,75 @@
+[7/14/2025, 10:34:54 AM] 初始化BackpackClient失败: 密钥验证失败: error:0680008E:asn1 encoding routines::not enough data
+[7/14/2025, 10:34:54 AM] WebSocketManager: onPriceUpdate回调已设置
+[7/14/2025, 10:34:54 AM] 正在初始化交易环境...
+[7/14/2025, 10:34:54 AM] 初始化BackpackClient失败: 密钥验证失败: error:0680008E:asn1 encoding routines::not enough data
+[7/14/2025, 10:34:54 AM] WebSocketManager: onPriceUpdate回调已设置
+[7/14/2025, 10:34:54 AM] WebSocketManager.onPriceUpdate 已正确设置
+[7/14/2025, 10:34:54 AM] 所有服务初始化完成
+[7/14/2025, 10:34:54 AM] 程序启动时间: 7/14/2025, 10:34:54 AM
+[7/14/2025, 10:34:54 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:34:54 AM] 3秒后重试...
+[7/14/2025, 10:34:57 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:34:57 AM] 3秒后重试...
+[7/14/2025, 10:35:00 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:00 AM] 3秒后重试...
+[7/14/2025, 10:35:03 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:03 AM] 3秒后重试...
+[7/14/2025, 10:35:06 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:06 AM] 获取初始价格失败: Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:06 AM] 📋 正常启动模式：恢复历史订单数据
+[7/14/2025, 10:35:06 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:06 AM] 3秒后重试...
+[7/14/2025, 10:35:09 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:09 AM] 3秒后重试...
+[7/14/2025, 10:35:12 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:12 AM] 3秒后重试...
+[7/14/2025, 10:35:15 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:15 AM] 3秒后重试...
+[7/14/2025, 10:35:18 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:18 AM] 获取订单历史记录失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:18 AM] 恢复历史订单数据失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:18 AM] 📋 交易日志为空，从零开始
+[7/14/2025, 10:35:18 AM] 📋 日志恢复结果：交易日志为空
+[7/14/2025, 10:35:18 AM] 初始化BackpackClient失败: 密钥验证失败: error:0680008E:asn1 encoding routines::not enough data
+[7/14/2025, 10:35:18 AM] 获取ETH_USDC行情数据...
+[7/14/2025, 10:35:18 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:18 AM] 3秒后重试...
+[7/14/2025, 10:35:21 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:21 AM] 3秒后重试...
+[7/14/2025, 10:35:24 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:24 AM] 3秒后重试...
+[7/14/2025, 10:35:27 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:27 AM] 3秒后重试...
+[7/14/2025, 10:35:30 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'Ticker')
+[7/14/2025, 10:35:30 AM] 📋 正常启动模式：恢复历史订单数据
+[7/14/2025, 10:35:30 AM] 正在恢复历史订单数据...
+[7/14/2025, 10:35:30 AM] API调用失败(尝试 1/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:30 AM] 3秒后重试...
+[7/14/2025, 10:35:33 AM] API调用失败(尝试 2/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:33 AM] 3秒后重试...
+[7/14/2025, 10:35:36 AM] API调用失败(尝试 3/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:36 AM] 3秒后重试...
+[7/14/2025, 10:35:39 AM] API调用失败(尝试 4/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:39 AM] 3秒后重试...
+[7/14/2025, 10:35:42 AM] API调用失败(尝试 5/5): Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:42 AM] 获取订单历史记录失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:42 AM] 恢复历史订单数据失败: Cannot read properties of undefined (reading 'OrderHistory')
+[7/14/2025, 10:35:42 AM] 📋 尝试从本地日志恢复交易统计...
+[7/14/2025, 10:35:42 AM] 📋 日志恢复结果：交易日志为空
+[7/14/2025, 10:35:42 AM] � 使用日志统计系统，不依赖API对账
+[7/14/2025, 10:35:42 AM] 原始交易对: ETH_USDC
+[7/14/2025, 10:35:42 AM] =====================================
+
+[7/14/2025, 10:35:43 AM] WebSocket连接已建立
+[7/14/2025, 10:35:43 AM] 已订阅行情: ETH_USDC
+[7/14/2025, 10:35:43 AM] 首次接收价格数据: 3067.41 USDC
+[7/14/2025, 10:35:52 AM] 轮询获取价格: 3067.41 USDC
+[7/14/2025, 10:35:57 AM] 轮询获取价格: 3066.86 USDC
+[7/14/2025, 10:36:02 AM] 轮询获取价格: 3066.86 USDC
+[7/14/2025, 10:36:07 AM] 轮询获取价格: 3066.86 USDC
+[7/14/2025, 10:36:22 AM] 轮询获取价格: 3064.33 USDC
+[7/14/2025, 10:36:27 AM] 轮询获取价格: 3064.33 USDC
+[7/14/2025, 10:36:49 AM] 轮询获取价格: 3064.33 USDC
+[7/14/2025, 10:36:59 AM] 轮询获取价格: 3068.09 USDC
+[7/14/2025, 10:37:04 AM] 轮询获取价格: 3067.3 USDC
+[7/14/2025, 10:37:14 AM] 轮询获取价格: 3069.79 USDC
