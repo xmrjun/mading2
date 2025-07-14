@@ -6,11 +6,11 @@
     "trading": {
         "tradingCoin": "ETH",
         "maxDropPercentage": 7,
-        "totalAmount": 151,
+        "totalAmount": 2000,
         "orderCount": 8,
         "incrementPercentage": 50,
         "takeProfitPercentage": 0.25,
-        "martingaleEnabled": true,
+        "martingaleEnabled": false,
         "martingaleMultiplier": 2,
         "maxConsecutiveLosses": 5
     },
