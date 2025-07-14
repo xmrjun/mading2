@@ -155,34 +155,47 @@ class TradingApp {
   updateMartingaleTotalAmount() {
     if (!this.martingaleEnabled) return;
     
+    log('\n===== 🎲 马丁格尔策略金额调整 =====');
+    
     // 根据上次交易结果调整投资金额
     if (this.lastTradeResult === 'loss') {
       // 上次亏损，增加投资金额
+      const previousAmount = this.currentTotalAmount;
       this.consecutiveLosses++;
       this.currentTotalAmount *= this.martingaleMultiplier;
       
-      log(`🎲 马丁格尔策略: 上次亏损，增加投资金额`);
-      log(`   连续亏损: ${this.consecutiveLosses}次`);
-      log(`   当前投资金额: ${this.currentTotalAmount} USDC`);
+      log(`📉 上次交易结果: 亏损`);
+      log(`🔼 投资金额递增: ${previousAmount} → ${this.currentTotalAmount} USDC (${this.martingaleMultiplier}倍)`);
+      log(`⚠️  连续亏损次数: ${this.consecutiveLosses}/${this.maxConsecutiveLosses}`);
+      
+      // 计算累计风险
+      const totalRisk = this.calculateTotalInvested();
+      log(`💰 累计投资风险: ${totalRisk.toFixed(2)} USDC`);
       
       // 检查是否超过最大连续亏损限制
       if (this.consecutiveLosses >= this.maxConsecutiveLosses) {
-        log(`🚫 马丁格尔策略: 连续亏损达到上限(${this.maxConsecutiveLosses}次)，暂停交易`, true);
+        log(`🚫 达到最大连续亏损限制(${this.maxConsecutiveLosses}次)，策略暂停！`, true);
         this.running = false;
         return;
       }
+      
     } else if (this.lastTradeResult === 'profit') {
       // 上次盈利，重置投资金额
-      log(`✅ 马丁格尔策略: 上次盈利，重置投资金额`);
+      const totalInvested = this.calculateTotalInvested();
+      log(`📈 上次交易结果: 盈利`);
+      log(`🎉 本轮累计投资: ${totalInvested.toFixed(2)} USDC`);
+      log(`🔄 重置投资金额: ${this.currentTotalAmount} → ${this.baseTotalAmount} USDC`);
+      
       this.consecutiveLosses = 0;
       this.currentTotalAmount = this.baseTotalAmount;
-      log(`   重置投资金额: ${this.currentTotalAmount} USDC`);
+      
+    } else {
+      // 首次执行
+      log(`🎯 策略首次启动`);
+      log(`💵 基础投资金额: ${this.currentTotalAmount} USDC`);
     }
     
-    // 首次执行或重置后
-    if (this.lastTradeResult === null) {
-      log(`🎯 马丁格尔策略: 首次执行，使用基础投资金额: ${this.currentTotalAmount} USDC`);
-    }
+    log('=====================================\n');
   }
   
   /**
@@ -817,7 +830,23 @@ class TradingApp {
         return false;
       }
       
-      log(`已生成 ${orders.length} 个阶梯买单`);
+      // 🎲 显示马丁格尔策略详情
+      if (this.martingaleEnabled) {
+        log('\n===== 🎲 马丁格尔阶梯挂单策略 =====');
+        log(`📊 当前轮次投资金额: ${totalAmount} USDC`);
+        log(`📈 价格回撤范围: 当前价格 ${this.currentPrice.toFixed(2)} → ${(this.currentPrice * (1 - maxDropPercentage / 100)).toFixed(2)} USDC (-${maxDropPercentage}%)`);
+        log(`🎯 生成 ${orders.length} 个阶梯限价单`);
+        
+        // 显示每层挂单详情
+        orders.forEach((order, index) => {
+          const dropPercent = ((this.currentPrice - order.price) / this.currentPrice * 100).toFixed(2);
+          log(`   第${index + 1}层: ${order.price.toFixed(2)} USDC (-${dropPercent}%), 数量: ${order.quantity.toFixed(6)} ${this.tradingCoin}, 金额: ${order.amount.toFixed(2)} USDC`);
+        });
+        
+        log('=========================================\n');
+      } else {
+        log(`已生成 ${orders.length} 个阶梯买单`);
+      }
       
       // 创建订单
       let successCount = 0;
