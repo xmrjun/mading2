@@ -1046,10 +1046,17 @@ class TradingApp {
       // 获取当前未成交订单
       let openOrders = [];
       let currentOpenOrderIds = new Set();
+      let openOrdersMap = {}; // 🔑 修复：创建订单映射对象
       
       try {
         openOrders = await this.backpackService.getOpenOrders(this.symbol);
         currentOpenOrderIds = new Set(openOrders.map(order => order.id));
+        
+        // 🔑 创建订单ID到订单对象的映射
+        openOrdersMap = {};
+        for (const order of openOrders) {
+          openOrdersMap[order.id] = order;
+        }
       } catch (openOrdersError) {
         log(`获取未成交订单失败: ${openOrdersError.message}`, true);
         
@@ -1065,20 +1072,61 @@ class TradingApp {
         if (allOrders && allOrders.length > 0) {
           log(`获取到 ${allOrders.length} 个历史订单记录`);
           
-          // 处理历史订单
+          // 🔑 修复：处理所有成交的历史订单，不仅仅是本地已知的
           for (const historyOrder of allOrders) {
             if (historyOrder.id && historyOrder.status === 'Filled') {
-              // 查找本地订单记录
-              const localOrder = this.orderManager.getOrder(historyOrder.id);
               
-              // 如果本地有此订单且未处理，更新其状态
-              if (localOrder && !this.tradeStats.isOrderProcessed(historyOrder.id)) {
-                // 使用API返回的实际成交数据
-                localOrder.status = 'Filled';
-                localOrder.filledQuantity = parseFloat(historyOrder.filledQuantity || historyOrder.quantity);
-                localOrder.filledAmount = parseFloat(historyOrder.filledAmount || (historyOrder.price * historyOrder.quantity));
+              // 检查是否已经统计过这个订单
+              if (this.tradeStats.isOrderProcessed(historyOrder.id)) {
+                continue; // 跳过已处理的订单
+              }
+              
+              // 查找本地订单记录
+              let localOrder = this.orderManager.getOrder(historyOrder.id);
+              
+              // 🔑 如果本地没有此订单，创建新的订单记录（恢复历史数据）
+              if (!localOrder) {
+                const filledQuantity = parseFloat(historyOrder.filledQuantity || historyOrder.quantity || 0);
+                const filledAmount = parseFloat(historyOrder.filledAmount || 0);
+                const actualAvgPrice = filledAmount > 0 && filledQuantity > 0 ? 
+                  filledAmount / filledQuantity : parseFloat(historyOrder.price || 0);
                 
-                log(`从API确认订单已成交: ${historyOrder.id} - ${localOrder.quantity} ${this.tradingCoin} @ ${localOrder.price} USDC`);
+                // 创建历史订单对象
+                const orderData = {
+                  id: historyOrder.id,
+                  symbol: historyOrder.symbol,
+                  side: historyOrder.side,
+                  price: parseFloat(historyOrder.price || 0),
+                  quantity: parseFloat(historyOrder.quantity || 0),
+                  filledQuantity: filledQuantity,
+                  filledAmount: filledAmount,
+                  avgPrice: actualAvgPrice,
+                  status: 'Filled',
+                  createTime: new Date(historyOrder.timestamp || historyOrder.createTime || Date.now())
+                };
+                
+                localOrder = new Order(orderData);
+                this.orderManager.addOrder(localOrder);
+                
+                log(`📋 恢复历史订单: ${historyOrder.id} - ${filledQuantity.toFixed(6)} ${this.tradingCoin} @ ${actualAvgPrice.toFixed(2)} USDC`);
+              } else {
+                // 更新现有订单的实际成交数据
+                const filledQuantity = parseFloat(historyOrder.filledQuantity || historyOrder.quantity || 0);
+                const filledAmount = parseFloat(historyOrder.filledAmount || 0);
+                const actualAvgPrice = filledAmount > 0 && filledQuantity > 0 ? 
+                  filledAmount / filledQuantity : localOrder.price;
+                
+                localOrder.status = 'Filled';
+                localOrder.filledQuantity = filledQuantity;
+                localOrder.filledAmount = filledAmount;
+                localOrder.avgPrice = actualAvgPrice;
+                
+                log(`📋 更新历史订单: ${historyOrder.id} - ${filledQuantity.toFixed(6)} ${this.tradingCoin} @ ${actualAvgPrice.toFixed(2)} USDC`);
+              }
+              
+              // 更新统计数据
+              if (localOrder && this.tradeStats.updateStats(localOrder)) {
+                log(`✅ 历史订单统计已更新: ${historyOrder.id}`);
               }
             }
           }
