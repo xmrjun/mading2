@@ -457,10 +457,12 @@ class TradingApp {
       }
       
       // 根据启动参数决定是否恢复历史订单
-      const skipHistory = process.argv.includes('--fresh') || process.argv.includes('--no-history');
+      // 🔑 修改：手动启动默认不查找历史，除非明确指定
+      const restoreHistory = process.argv.includes('--restore-history') || process.argv.includes('--with-history');
+      const skipHistory = !restoreHistory; // 默认跳过历史记录
       
       if (skipHistory) {
-        log('🆕 全新启动模式：清理现有订单，从零开始');
+        log('🆕 手动启动模式：清理现有订单，从零开始');
         
         // 先取消所有未成交订单，避免遗漏
         try {
