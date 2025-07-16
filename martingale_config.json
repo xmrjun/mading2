@@ -10,7 +10,7 @@
     "martingaleMultiplier": 2,
     "maxConsecutiveLosses": 5,
     "takeProfitPercentage": 1.0,
-    "stopLossPercentage": 10.0,
+    "stopLossPercentage": 3.0,
     "martingaleEnabled": true
   },
   "actions": {
