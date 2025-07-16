@@ -271,25 +271,9 @@ class LogBasedStatsService {
         const orderAge = Date.now() - new Date(orderInfo.timestamp).getTime();
         const ageMinutes = orderAge / 60000;
         
-        // 如果订单创建超过30分钟，假设可能已成交，尝试从已知成交信息推断
+        // 记录未处理的订单，但不做任何假设
         if (ageMinutes > 30) {
-          log(`📋 发现可能成交的老订单: ${orderId} (${ageMinutes.toFixed(1)}分钟前)`);
-          
-          // 检查是否是已知的成交订单
-          const knownFills = {
-            '3241462534': { quantity: 0.0034, amount: 10.13 },
-            '3241462672': { quantity: 0.0052, amount: 15.34 }
-          };
-          
-          if (knownFills[orderId]) {
-            log(`✅ 补充已知成交订单: ${orderId}`);
-            stats.totalQuantity += knownFills[orderId].quantity;
-            stats.totalAmount += knownFills[orderId].amount;
-            stats.orderCount += 1;
-            processedOrders.add(orderId);
-          } else {
-            log(`⚠️  未知状态的老订单: ${orderId} - 跳过处理`);
-          }
+          log(`📋 发现未处理的老订单: ${orderId} (${ageMinutes.toFixed(1)}分钟前) - 需要API验证状态`);
         } else {
           log(`⏰ 新订单等待成交: ${orderId} (${ageMinutes.toFixed(1)}分钟前)`);
         }

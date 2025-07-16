@@ -940,6 +940,68 @@ class TradingApp {
   }
   
   /**
+   * 备用订单状态检查机制（当批量API失败时使用）
+   */
+  async checkOrderStatusWithBackup() {
+    try {
+      log('🔍 启动备用订单状态检查...');
+      
+      // 获取所有已创建的订单ID
+      const allOrderIds = this.orderManager.getAllCreatedOrderIds();
+      log(`📋 检查 ${allOrderIds.length} 个已创建的订单状态`);
+      
+      let checkedCount = 0;
+      let filledCount = 0;
+      
+      for (const orderId of allOrderIds) {
+        try {
+          // 尝试单独查询订单状态
+          const orderDetail = await this.backpackService.getOrderDetails(orderId);
+          
+          if (orderDetail && orderDetail.status === 'Filled') {
+            const localOrder = this.orderManager.getOrder(orderId);
+            if (localOrder && !this.tradeStats.isOrderProcessed(orderId)) {
+              
+              // 更新本地订单状态
+              localOrder.status = 'Filled';
+              localOrder.filledQuantity = parseFloat(orderDetail.filledQuantity || orderDetail.quantity);
+              localOrder.filledAmount = parseFloat(orderDetail.filledAmount || (orderDetail.price * orderDetail.quantity));
+              
+              // 更新统计
+              this.tradeStats.updateStats(localOrder);
+              
+              // 记录到日志
+              this.logBasedStats.logBuyOrderFilled(
+                orderId,
+                localOrder.filledQuantity,
+                localOrder.filledAmount,
+                localOrder.price
+              );
+              
+              log(`✅ 发现成交订单: ${orderId} - ${localOrder.filledQuantity} ${this.tradingCoin} @ ${localOrder.price} USDC`);
+              filledCount++;
+            }
+          }
+          
+          checkedCount++;
+          
+          // 避免API请求过快
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (singleOrderError) {
+          log(`单个订单查询失败 ${orderId}: ${singleOrderError.message}`, true);
+          // 单个失败不影响其他订单检查
+        }
+      }
+      
+      log(`📊 备用检查完成: 检查了 ${checkedCount}/${allOrderIds.length} 个订单，发现 ${filledCount} 个新成交`);
+      
+    } catch (error) {
+      log(`备用订单状态检查失败: ${error.message}`, true);
+    }
+  }
+  
+  /**
    * 查询订单并更新统计
    */
   async queryOrdersAndUpdateStats() {
@@ -955,17 +1017,9 @@ class TradingApp {
         currentOpenOrderIds = new Set(openOrders.map(order => order.id));
       } catch (openOrdersError) {
         log(`获取未成交订单失败: ${openOrdersError.message}`, true);
-        // 当API失败时，尝试从日志统计服务恢复数据
-        if (this.logBasedStats) {
-          try {
-            const recoveryResult = await this.logBasedStats.recoverStatsFromLogs();
-            if (recoveryResult.success && recoveryResult.recovered) {
-              log('✓ 已从交易日志恢复统计数据');
-            }
-          } catch (recoveryError) {
-            log(`从日志恢复数据失败: ${recoveryError.message}`, true);
-          }
-        }
+        
+        // 🔑 当API失败时，尝试逐个检查已知订单的状态
+        await this.checkOrderStatusWithBackup();
       }
       
       // 获取所有历史订单（包括已成交和已取消的）
