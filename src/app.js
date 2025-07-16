@@ -1228,6 +1228,12 @@ class TradingApp {
               log('已关闭所有WebSocket连接');
             }
             
+            // 🎲 马丁格尔策略：无成交重启视为亏损
+            if (this.martingaleEnabled) {
+              log('🎲 马丁格尔策略：无成交重启视为亏损，下次将增加投资金额');
+              this.lastTradeResult = 'loss';
+            }
+            
             // 重置应用状态
             this.resetAppState();
             
