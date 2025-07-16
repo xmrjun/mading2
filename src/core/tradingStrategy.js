@@ -42,7 +42,9 @@ class TradingStrategy {
     
     // 计算价格区间
     const lowestPrice = currentPrice * (1 - maxDropPercentage / 100);
-    const priceStep = (currentPrice - lowestPrice) / (orderCount - 1);
+    // 🔑 修复：确保第一个订单不会按市场价立即成交
+    // 将价格区间均匀分布，但第一个订单价格低于当前价格
+    const priceStep = (currentPrice - lowestPrice) / orderCount; // 去掉 -1
     
     // 计算基础订单金额（使用等比数列求和公式）
     // 总金额 = 基础金额 * (1 + r + r^2 + ... + r^(n-1))
@@ -66,8 +68,9 @@ class TradingStrategy {
     
     // 创建订单
     for (let i = 0; i < orderCount; i++) {
-      // 计算当前订单价格
-      const rawPrice = currentPrice - (priceStep * i);
+      // 🔑 修复：确保所有订单价格都低于当前市场价
+      // 第一个订单 (i=0) 价格现在是 currentPrice - priceStep，而不是 currentPrice
+      const rawPrice = currentPrice - (priceStep * (i + 1)); // 加1确保第一个订单也低于市场价
       // 调整价格到交易所接受的格式
       const price = Formatter.adjustPriceToTickSize(rawPrice, tradingCoin, this.config);
       
