@@ -912,14 +912,27 @@ class TradingApp {
             
             // 如果订单立即成交，更新统计
             if (newOrder.status === 'Filled') {
+              // 🔑 修复：使用API返回的实际成交数据，而不是设计价格
+              const actualFilledQuantity = parseFloat(result.filledQuantity || result.executedQuantity || order.quantity);
+              const actualFilledAmount = parseFloat(result.filledAmount || result.executedQuoteQuantity || 0);
+              const actualAvgPrice = actualFilledAmount > 0 ? actualFilledAmount / actualFilledQuantity : order.price;
+              
+              // 更新订单对象的实际成交数据
+              newOrder.filledQuantity = actualFilledQuantity;
+              newOrder.filledAmount = actualFilledAmount;
+              newOrder.avgPrice = actualAvgPrice;
+              
               this.tradeStats.updateStats(newOrder);
-              // 🔑 记录买单成交到日志
+              
+              // 🔑 记录买单成交到日志 - 使用实际成交数据
               this.logBasedStats.logBuyOrderFilled(
                 result.id, 
-                order.quantity, 
-                order.price * order.quantity, 
-                order.price
+                actualFilledQuantity, 
+                actualFilledAmount, 
+                actualAvgPrice
               );
+              
+              log(`✅ 订单立即成交: ${result.id} - 实际成交 ${actualFilledQuantity.toFixed(6)} ${this.tradingCoin} @ ${actualAvgPrice.toFixed(2)} USDC`);
             }
             
             // 在终端显示订单创建信息（确保显示）
@@ -1079,76 +1092,48 @@ class TradingApp {
       const filledOrders = [];
       const partiallyFilledOrders = [];
       
-      for (const orderId of this.orderManager.getAllCreatedOrderIds()) {
-        const order = this.orderManager.getOrder(orderId);
-        if (!order) continue;
+      for (const order of this.orderManager.getAllOrders()) {
+        const openOrder = openOrdersMap[order.id];
         
-        // 检查是否在未成交列表中
-        const isInOpenOrders = currentOpenOrderIds.has(orderId);
-        
-        if (!isInOpenOrders) {
-          // 订单不在未成交列表中，说明已完全成交
-          if (!this.tradeStats.isOrderProcessed(orderId)) {
-            // 准备更新数据
-            const updateData = {
-              status: 'Filled'
-            };
+        if (openOrder) {
+          // 获取API返回的实际成交数据
+          const apiFilledQuantity = parseFloat(openOrder.filledQuantity || openOrder.executedQuantity || 0);
+          const apiFilledAmount = parseFloat(openOrder.filledAmount || openOrder.executedQuoteQuantity || 0);
+          
+          // 🔑 修复：使用实际成交价格，而不是订单设计价格
+          const actualAvgPrice = apiFilledAmount > 0 && apiFilledQuantity > 0 ? 
+            apiFilledAmount / apiFilledQuantity : order.price;
+          
+          // 计算新成交的数量和金额
+          const newFilledQuantity = apiFilledQuantity - parseFloat(order.filledQuantity || 0);
+          const newFilledAmount = apiFilledAmount - parseFloat(order.filledAmount || 0);
+          
+          if (newFilledQuantity > 0) {
+            // 更新本地订单状态
+            order.filledQuantity = apiFilledQuantity;
+            order.filledAmount = apiFilledAmount;
+            order.avgPrice = actualAvgPrice;
+            order.status = apiFilledQuantity >= order.quantity ? 'Filled' : 'PartiallyFilled';
             
-            // 确保设置正确的成交数量和金额
-            if (order.filledQuantity <= 0) {
-              updateData.filledQuantity = order.quantity;
-            }
+            // 🔑 记录新成交的部分 - 使用实际价格
+            this.logBasedStats.logBuyPartialFilled(order.id, newFilledQuantity, newFilledAmount);
             
-            if (order.filledAmount <= 0) {
-              updateData.filledAmount = order.price * order.quantity;
-            }
+            log(`📈 订单部分成交: ${order.id} - 新成交 ${newFilledQuantity.toFixed(6)} ${this.tradingCoin} @ ${actualAvgPrice.toFixed(2)} USDC`);
             
-            // 使用update方法更新订单，确保remainingQuantity被正确设置
-            order.update(updateData);
+            partiallyFilledOrders.push(order);
             
-            // 添加到已成交订单列表
-            filledOrders.push(order);
-            
-            // 记录订单成交信息
-            log(`🎯 [统计] 订单完全成交: ${orderId} - ${order.quantity} ${this.tradingCoin} @ ${order.price} USDC`);
-          }
-        } else {
-          // 订单还在未成交列表中，但可能有部分成交
-          const openOrder = openOrders.find(o => o.id === orderId);
-          if (openOrder) {
-            const apiFilledQuantity = parseFloat(openOrder.filledQuantity || 0);
-            const apiFilledAmount = parseFloat(openOrder.filledAmount || 0);
-            const previousFilledQuantity = parseFloat(order.filledQuantity || 0);
-            
-            // 🔑 关键：检查是否有新的部分成交
-            if (apiFilledQuantity > previousFilledQuantity) {
-              const newFilledQuantity = apiFilledQuantity - previousFilledQuantity;
-              const newFilledAmount = apiFilledAmount - parseFloat(order.filledAmount || 0);
+            // 如果完全成交
+            if (order.status === 'Filled') {
+              // 🔑 记录买单完全成交到日志 - 使用实际数据
+              this.logBasedStats.logBuyOrderFilled(
+                order.id, 
+                apiFilledQuantity, 
+                apiFilledAmount, 
+                actualAvgPrice
+              );
               
-              log(`📊 [统计] 检测到部分成交: ${orderId}`);
-              log(`   新成交数量: ${newFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
-              log(`   新成交金额: ${newFilledAmount.toFixed(2)} USDC`);
-              
-              // 更新订单的成交信息
-              order.update({
-                filledQuantity: apiFilledQuantity,
-                filledAmount: apiFilledAmount,
-                status: apiFilledQuantity >= order.quantity ? 'Filled' : 'PartiallyFilled'
-              });
-              
-              // 🔑 关键：实时更新统计数据（只统计新增成交部分）
-              this.tradeStats.updatePartialFillStats(orderId, newFilledQuantity, newFilledAmount);
-              
-              // 🔑 记录部分成交到日志
-              this.logBasedStats.logBuyPartialFilled(orderId, newFilledQuantity, newFilledAmount);
-              
-              partiallyFilledOrders.push({
-                order: order,
-                newFilledQuantity: newFilledQuantity,
-                newFilledAmount: newFilledAmount
-              });
-              
-              log(`✅ [统计] 部分成交统计已更新: 累计成交量 ${this.tradeStats.totalFilledQuantity.toFixed(6)} ${this.tradingCoin}`);
+              log(`✅ 订单完全成交: ${order.id} - 总成交 ${apiFilledQuantity.toFixed(6)} ${this.tradingCoin} @ ${actualAvgPrice.toFixed(2)} USDC`);
+              filledOrders.push(order);
             }
           }
         }
@@ -1750,6 +1735,11 @@ class TradingApp {
            const price = parseFloat(historyOrder.price);
            const quantity = parseFloat(historyOrder.quantity);
            const filledQuantity = parseFloat(historyOrder.filledQuantity || historyOrder.quantity);
+           const filledAmount = parseFloat(historyOrder.filledAmount || 0);
+           
+           // 🔑 修复：计算实际成交均价，而不是使用设计价格
+           const actualAvgPrice = filledAmount > 0 && filledQuantity > 0 ? 
+             filledAmount / filledQuantity : price;
            
            if (isNaN(price) || isNaN(quantity) || isNaN(filledQuantity) || 
                price <= 0 || quantity <= 0 || filledQuantity <= 0) {
@@ -1766,7 +1756,8 @@ class TradingApp {
              price: price,
              quantity: quantity,
              filledQuantity: filledQuantity,
-             filledAmount: parseFloat(historyOrder.filledAmount || (price * filledQuantity)),
+             filledAmount: filledAmount,
+             avgPrice: actualAvgPrice,  // 🔑 添加实际成交均价
              status: 'Filled',
              createTime: new Date(historyOrder.timestamp || historyOrder.createTime || Date.now()),
              processed: false  // 标记为未处理，让统计系统处理

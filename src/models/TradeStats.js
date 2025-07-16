@@ -26,58 +26,36 @@ class TradeStats {
   }
   
   /**
-   * 更新统计信息
-   * @param {Object} order - 订单信息
-   * @returns {boolean} 是否已更新数据
+   * 更新统计数据
+   * @param {Order} order - 订单对象
+   * @returns {boolean} 是否成功更新
    */
   updateStats(order) {
-    if (!order || !order.id) return false;
-    
-    // 检查订单ID是否已处理过
-    if (this.processedOrderIds.has(order.id)) {
-      // 使用全局log函数（如果可用）记录已处理订单的情况
-      if (typeof log === 'function') {
-        log(`跳过已处理订单ID: ${order.id}`);
-      }
+    if (!order || !order.id) {
       return false;
     }
     
-    // 不再在这里增加totalOrders计数，因为订单创建时已经增加
-    // 避免重复计数问题
+    // 防止重复统计
+    if (this.processedOrderIds.has(order.id)) {
+      return false;
+    }
     
-    // 确保有成交信息再更新成交统计
-    if (order.status === 'Filled' || order.status === 'PartiallyFilled') {
-      // 确保使用数字类型进行计算
-      const filledAmount = parseFloat(order.filledAmount || (order.price * order.quantity) || 0);
+    if (order.isFilled()) {
+      // 🔑 修复：优先使用实际成交数据，而不是设计数据
       const filledQuantity = parseFloat(order.filledQuantity || order.quantity || 0);
-      const price = parseFloat(order.price || 0);
+      const filledAmount = parseFloat(order.filledAmount || 0);
       
-      // 检查数据有效性
-      if (isNaN(filledAmount) || isNaN(filledQuantity) || isNaN(price)) {
-        if (typeof log === 'function') {
-          log(`订单${order.id}包含无效数据: 数量=${filledQuantity}, 金额=${filledAmount}, 价格=${price}`, true);
-        }
+      // 如果没有实际成交金额，使用设计价格计算
+      const actualFilledAmount = filledAmount > 0 ? filledAmount : 
+        (parseFloat(order.avgPrice || order.price || 0) * filledQuantity);
+      
+      // 验证数据有效性
+      if (filledQuantity <= 0 || actualFilledAmount <= 0) {
+        log(`统计更新失败: 订单 ${order.id} 数据无效 - 数量:${filledQuantity}, 金额:${actualFilledAmount}`);
         return false;
       }
       
-      // 检查数据合理性
-      if (filledAmount <= 0 || filledQuantity <= 0 || price <= 0) {
-        if (typeof log === 'function') {
-          log(`订单${order.id}数据不合理: 数量=${filledQuantity}, 金额=${filledAmount}, 价格=${price}`, true);
-        }
-        return false;
-      }
-      
-      // 添加到已处理订单集合
-      this.processedOrderIds.add(order.id);
-      
-      // 记录处理详情（如果log函数可用）
-      if (typeof log === 'function') {
-        log(`处理订单ID: ${order.id}, 状态: ${order.status}, 数量: ${filledQuantity}, 金额: ${filledAmount}`);
-      }
-      
-      // 更新统计数据
-      this.totalFilledAmount += filledAmount;
+      this.totalFilledAmount += actualFilledAmount;
       this.totalFilledQuantity += filledQuantity;
       this.filledOrders++;
       
@@ -97,6 +75,7 @@ class TradeStats {
       }
       
       this.lastUpdateTime = new Date();
+      this.markOrderAsProcessed(order.id);
       return true;
     } else {
       // 非成交状态订单（如果log函数可用）
@@ -106,6 +85,16 @@ class TradeStats {
     }
     
     return false;
+  }
+
+  /**
+   * 标记订单为已处理
+   * @param {string} orderId - 订单ID
+   */
+  markOrderAsProcessed(orderId) {
+    if (orderId) {
+      this.processedOrderIds.add(orderId);
+    }
   }
   
   /**

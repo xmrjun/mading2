@@ -6,18 +6,18 @@ class Order {
    * 构造函数
    * @param {Object} orderData - 订单数据
    */
-  constructor(orderData = {}) {
+  constructor(orderData) {
     this.id = orderData.id;
     this.symbol = orderData.symbol;
-    this.price = parseFloat(orderData.price);
-    this.quantity = parseFloat(orderData.quantity);
-    this.amount = this.price * this.quantity;
     this.side = orderData.side || 'Bid'; // Bid: 买入, Ask: 卖出
     this.orderType = orderData.orderType || 'Limit';
-    this.timeInForce = orderData.timeInForce || 'GTC';
+    this.price = parseFloat(orderData.price) || 0;
+    this.quantity = parseFloat(orderData.quantity) || 0;
+    this.filledQuantity = parseFloat(orderData.filledQuantity) || 0;
+    this.filledAmount = parseFloat(orderData.filledAmount) || 0;
+    this.avgPrice = parseFloat(orderData.avgPrice) || 0; // 🔑 添加实际成交均价
+    this.remainingQuantity = this.quantity - this.filledQuantity;
     this.status = orderData.status || 'New';
-    this.filledQuantity = parseFloat(orderData.filledQuantity || 0);
-    this.filledAmount = parseFloat(orderData.filledAmount || 0);
     this.createTime = orderData.createTime || new Date();
     this.updateTime = orderData.updateTime || new Date();
     this.processed = orderData.processed || false;
