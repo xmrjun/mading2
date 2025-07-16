@@ -377,7 +377,7 @@ class TradingApp {
         
         // 重新初始化应用
         log('正在重新初始化交易环境...');
-        await this.initialize();
+        await this.initialize(true); // 🔑 传递isRestart=true，跳过历史记录
         
         // 重新启动应用
         await this.start();
@@ -392,8 +392,9 @@ class TradingApp {
   
   /**
    * 初始化交易环境
+   * @param {boolean} isRestart - 是否为重启模式（止盈后重启等）
    */
-  async initialize() {
+  async initialize(isRestart = false) {
     try {
       log('正在初始化交易环境...');
       
@@ -458,11 +459,16 @@ class TradingApp {
       
       // 根据启动参数决定是否恢复历史订单
       // 🔑 修改：手动启动默认不查找历史，除非明确指定
-      const restoreHistory = process.argv.includes('--restore-history') || process.argv.includes('--with-history');
+      // 🔑 重启模式（止盈后重启）也跳过历史记录
+      const restoreHistory = !isRestart && (process.argv.includes('--restore-history') || process.argv.includes('--with-history'));
       const skipHistory = !restoreHistory; // 默认跳过历史记录
       
       if (skipHistory) {
-        log('🆕 手动启动模式：清理现有订单，从零开始');
+        if (isRestart) {
+          log('🔄 止盈重启模式：清理现有订单，从当前状态重新开始');
+        } else {
+          log('🆕 手动启动模式：清理现有订单，从零开始');
+        }
         
         // 🔑 重要：手动启动时重置止盈状态，防止立即触发
         this.takeProfitTriggered = false;
@@ -550,7 +556,11 @@ class TradingApp {
       
       // 🔑 优先使用日志恢复统计（更可靠）
       if (skipHistory) {
-        log('🆕 手动启动：跳过历史日志恢复，从当前状态开始');
+        if (isRestart) {
+          log('🔄 止盈重启：跳过历史日志恢复，保持当前状态');
+        } else {
+          log('🆕 手动启动：跳过历史日志恢复，从当前状态开始');
+        }
         // 重置统计数据，确保从零开始
         this.tradeStats.reset();
         this.orderManager.reset();
@@ -1295,7 +1305,7 @@ class TradingApp {
             
             // 重新初始化应用
             log('正在重新初始化交易环境...');
-            await this.initialize();
+            await this.initialize(true); // 🔑 传递isRestart=true，跳过历史记录
             
             // 重新启动应用
             await this.start();
