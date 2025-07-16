@@ -78,11 +78,11 @@ class TradingApp {
       const priceIncrease = ((priceInfo.price - this.tradeStats.averagePrice) / this.tradeStats.averagePrice) * 100;
       this.currentPriceInfo.increase = priceIncrease;
       
-      // 如果价格变化大，记录到终端
-      if (Math.abs(priceIncrease) > 0.1) {
-        const direction = priceIncrease >= 0 ? '上涨' : '下跌';
-        log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
-      }
+              // 如果价格变化大，记录到终端
+        if (Math.abs(priceIncrease) > 0.1) {
+          const direction = priceIncrease >= 0 ? '上涨' : '下跌';
+          log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
+        }
       
       // 🔑 关键修复：基于统计数据进行止盈检查，不依赖订单列表
       // 只要有持仓且有均价就监控止盈，支持外部转入的币种
@@ -1226,12 +1226,6 @@ class TradingApp {
             if (this.priceMonitor.wsManager) {
               this.priceMonitor.wsManager.closeAllConnections();
               log('已关闭所有WebSocket连接');
-            }
-            
-            // 🎲 马丁格尔策略：无成交重启视为亏损
-            if (this.martingaleEnabled) {
-              log('🎲 马丁格尔策略：无成交重启视为亏损，下次将增加投资金额');
-              this.lastTradeResult = 'loss';
             }
             
             // 重置应用状态
