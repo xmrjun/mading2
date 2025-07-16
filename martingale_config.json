@@ -1,0 +1,44 @@
+{
+  "api": {
+    "privateKey": "YOUR_PRIVATE_KEY_HERE",
+    "publicKey": "YOUR_PUBLIC_KEY_HERE"
+  },
+  "trading": {
+    "tradingCoin": "ETH",
+    "symbol": "ETH_USDC",
+    "baseAmount": 50,
+    "martingaleMultiplier": 2,
+    "maxConsecutiveLosses": 5,
+    "takeProfitPercentage": 1.0,
+    "stopLossPercentage": 10.0,
+    "martingaleEnabled": true
+  },
+  "actions": {
+    "sellNonUsdcAssets": false,
+    "cancelAllOrders": true,
+    "restartAfterTakeProfit": true,
+    "autoRestartNoFill": false
+  },
+  "advanced": {
+    "minOrderAmount": 10,
+    "priceTickSize": 0.01,
+    "quantityStepSize": 0.000001,
+    "checkOrdersIntervalMinutes": 1,
+    "monitorIntervalSeconds": 5,
+    "realTimePositionCheck": true,
+    "positionDifferenceThreshold": 1,
+    "positionDetectionThreshold": 0.0001
+  },
+  "risk": {
+    "maxTotalInvestment": 1000,
+    "dailyLossLimit": 200,
+    "emergencyStopEnabled": true,
+    "maxDrawdownPercentage": 20
+  },
+  "logging": {
+    "logLevel": "info",
+    "logToFile": true,
+    "detailedTradeLog": true,
+    "statisticsInterval": 300
+  }
+}
