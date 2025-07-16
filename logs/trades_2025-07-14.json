@@ -1,0 +1,2 @@
+{"timestamp":"2025-07-14T10:40:26.000Z","action":"BUY_ORDER_FILLED","tradingCoin":"ETH","orderId":"3241462534","filledQuantity":0.0034,"filledAmount":10.13,"avgPrice":2979.84}
+{"timestamp":"2025-07-14T10:41:34.000Z","action":"BUY_ORDER_FILLED","tradingCoin":"ETH","orderId":"3241462672","filledQuantity":0.0052,"filledAmount":15.34,"avgPrice":2949.12}

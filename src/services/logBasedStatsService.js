@@ -198,10 +198,20 @@ class LogBasedStatsService {
     };
 
     const processedOrders = new Set();
+    const createdOrders = new Map(); // 记录已创建的订单
 
     for (const trade of trades) {
       try {
         switch (trade.action) {
+          case 'BUY_ORDER_CREATED':
+            // 记录创建的订单信息
+            createdOrders.set(trade.orderId, {
+              price: parseFloat(trade.price || 0),
+              quantity: parseFloat(trade.quantity || 0),
+              timestamp: trade.timestamp
+            });
+            break;
+            
           case 'BUY_ORDER_FILLED':
             if (!processedOrders.has(trade.orderId)) {
               stats.totalQuantity += parseFloat(trade.filledQuantity || 0);
@@ -250,6 +260,23 @@ class LogBasedStatsService {
         }
       } catch (error) {
         log(`处理交易记录失败: ${error.message}`, true);
+      }
+    }
+
+    // 🔑 处理只有CREATED没有FILLED的订单
+    log(`📊 检查未处理的创建订单: ${createdOrders.size}个创建订单, ${processedOrders.size}个已处理`);
+    
+    for (const [orderId, orderInfo] of createdOrders) {
+      if (!processedOrders.has(orderId)) {
+        const orderAge = Date.now() - new Date(orderInfo.timestamp).getTime();
+        const ageMinutes = orderAge / 60000;
+        
+        // 记录未处理的订单，但不做任何假设
+        if (ageMinutes > 30) {
+          log(`📋 发现未处理的老订单: ${orderId} (${ageMinutes.toFixed(1)}分钟前) - 需要API验证状态`);
+        } else {
+          log(`⏰ 新订单等待成交: ${orderId} (${ageMinutes.toFixed(1)}分钟前)`);
+        }
       }
     }
 

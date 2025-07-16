@@ -78,11 +78,11 @@ class TradingApp {
       const priceIncrease = ((priceInfo.price - this.tradeStats.averagePrice) / this.tradeStats.averagePrice) * 100;
       this.currentPriceInfo.increase = priceIncrease;
       
-      // 如果价格变化大，记录到终端
-      if (Math.abs(priceIncrease) > 0.1) {
-        const direction = priceIncrease >= 0 ? '上涨' : '下跌';
-        log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
-      }
+              // 如果价格变化大，记录到终端
+        if (Math.abs(priceIncrease) > 0.1) {
+          const direction = priceIncrease >= 0 ? '上涨' : '下跌';
+          log(`相对均价${direction}: ${Math.abs(priceIncrease).toFixed(2)}% (当前: ${priceInfo.price.toFixed(2)}, 均价: ${this.tradeStats.averagePrice.toFixed(2)})`);
+        }
       
       // 🔑 关键修复：基于统计数据进行止盈检查，不依赖订单列表
       // 只要有持仓且有均价就监控止盈，支持外部转入的币种
@@ -940,6 +940,68 @@ class TradingApp {
   }
   
   /**
+   * 备用订单状态检查机制（当批量API失败时使用）
+   */
+  async checkOrderStatusWithBackup() {
+    try {
+      log('🔍 启动备用订单状态检查...');
+      
+      // 获取所有已创建的订单ID
+      const allOrderIds = this.orderManager.getAllCreatedOrderIds();
+      log(`📋 检查 ${allOrderIds.length} 个已创建的订单状态`);
+      
+      let checkedCount = 0;
+      let filledCount = 0;
+      
+      for (const orderId of allOrderIds) {
+        try {
+          // 尝试单独查询订单状态
+          const orderDetail = await this.backpackService.getOrderDetails(orderId);
+          
+          if (orderDetail && orderDetail.status === 'Filled') {
+            const localOrder = this.orderManager.getOrder(orderId);
+            if (localOrder && !this.tradeStats.isOrderProcessed(orderId)) {
+              
+              // 更新本地订单状态
+              localOrder.status = 'Filled';
+              localOrder.filledQuantity = parseFloat(orderDetail.filledQuantity || orderDetail.quantity);
+              localOrder.filledAmount = parseFloat(orderDetail.filledAmount || (orderDetail.price * orderDetail.quantity));
+              
+              // 更新统计
+              this.tradeStats.updateStats(localOrder);
+              
+              // 记录到日志
+              this.logBasedStats.logBuyOrderFilled(
+                orderId,
+                localOrder.filledQuantity,
+                localOrder.filledAmount,
+                localOrder.price
+              );
+              
+              log(`✅ 发现成交订单: ${orderId} - ${localOrder.filledQuantity} ${this.tradingCoin} @ ${localOrder.price} USDC`);
+              filledCount++;
+            }
+          }
+          
+          checkedCount++;
+          
+          // 避免API请求过快
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (singleOrderError) {
+          log(`单个订单查询失败 ${orderId}: ${singleOrderError.message}`, true);
+          // 单个失败不影响其他订单检查
+        }
+      }
+      
+      log(`📊 备用检查完成: 检查了 ${checkedCount}/${allOrderIds.length} 个订单，发现 ${filledCount} 个新成交`);
+      
+    } catch (error) {
+      log(`备用订单状态检查失败: ${error.message}`, true);
+    }
+  }
+  
+  /**
    * 查询订单并更新统计
    */
   async queryOrdersAndUpdateStats() {
@@ -947,8 +1009,18 @@ class TradingApp {
       log('查询当前交易周期新成交的订单...');
       
       // 获取当前未成交订单
-      const openOrders = await this.backpackService.getOpenOrders(this.symbol);
-      const currentOpenOrderIds = new Set(openOrders.map(order => order.id));
+      let openOrders = [];
+      let currentOpenOrderIds = new Set();
+      
+      try {
+        openOrders = await this.backpackService.getOpenOrders(this.symbol);
+        currentOpenOrderIds = new Set(openOrders.map(order => order.id));
+      } catch (openOrdersError) {
+        log(`获取未成交订单失败: ${openOrdersError.message}`, true);
+        
+        // 🔑 当API失败时，尝试逐个检查已知订单的状态
+        await this.checkOrderStatusWithBackup();
+      }
       
       // 获取所有历史订单（包括已成交和已取消的）
       try {
