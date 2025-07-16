@@ -577,6 +577,9 @@ class TradingApp {
         }
       }
       
+      // 🔑 智能判断程序运行模式：根据当前持仓情况自动决定
+      await this.determineOperationMode();
+      
       return true;
     } catch (error) {
       log(`初始化失败: ${error.message}`);
@@ -1938,6 +1941,122 @@ class TradingApp {
    */
   isRestartNeeded() {
     return false; // 永远返回false，因为我们不再使用重启机制
+  }
+  
+  /**
+   * 智能判断程序运行模式
+   * 根据当前持仓情况和止盈状态自动决定程序行为
+   */
+  async determineOperationMode() {
+    try {
+      log('🤖 智能分析当前交易状态...');
+      
+      // 首先检查账户实际持仓（更准确）
+      let actualPosition = 0;
+      let accountAveragePrice = 0;
+      
+      try {
+        const position = await this.backpackService.getPosition(this.tradingCoin);
+        actualPosition = parseFloat(position?.available || position?.total || '0');
+        log(`🏦 账户实际持仓: ${actualPosition.toFixed(6)} ${this.tradingCoin}`);
+      } catch (positionError) {
+        log(`获取账户持仓失败: ${positionError.message}`);
+      }
+      
+      // 检查统计数据中的持仓情况
+      const statsPosition = this.tradeStats.totalFilledQuantity || 0;
+      const statsAveragePrice = this.tradeStats.averagePrice || 0;
+      
+      log(`📊 统计数据持仓: ${statsPosition.toFixed(6)} ${this.tradingCoin}`);
+      
+      // 使用实际持仓或统计持仓中的较大值
+      const effectivePosition = Math.max(actualPosition, statsPosition);
+      const threshold = this.config.advanced?.positionDetectionThreshold || 0.001;
+      
+      if (effectivePosition > threshold) {
+        log(`✅ 检测到有效持仓: ${effectivePosition.toFixed(6)} ${this.tradingCoin}`);
+        
+        // 确定使用哪个均价
+        let averagePrice = statsAveragePrice;
+        if (!averagePrice || averagePrice <= 0) {
+          // 如果统计数据没有均价，尝试从历史订单恢复或使用市价估算
+          try {
+            const ticker = await this.backpackService.getTicker(this.apiSymbol);
+            if (ticker && ticker.lastPrice) {
+              averagePrice = parseFloat(ticker.lastPrice);
+              log(`⚠️  使用当前市价作为估算均价: ${averagePrice.toFixed(2)} USDC`);
+              
+              // 更新统计数据
+              this.tradeStats.totalFilledQuantity = effectivePosition;
+              this.tradeStats.averagePrice = averagePrice;
+              this.tradeStats.totalFilledAmount = effectivePosition * averagePrice;
+              this.tradeStats.filledOrders = 1;
+            }
+          } catch (tickerError) {
+            log(`获取市价失败: ${tickerError.message}`, true);
+          }
+        }
+        
+        if (averagePrice > 0) {
+          log(`💰 使用均价: ${averagePrice.toFixed(2)} USDC`);
+          
+          // 获取当前市价进行止盈判断
+          try {
+            const ticker = await this.backpackService.getTicker(this.apiSymbol);
+            if (ticker && ticker.lastPrice) {
+              const currentPrice = parseFloat(ticker.lastPrice);
+              const takeProfitPercentage = this.config.trading.takeProfitPercentage;
+              
+              // 检查是否已达到止盈条件
+              const priceIncrease = ((currentPrice - averagePrice) / averagePrice) * 100;
+              const shouldTakeProfit = priceIncrease >= takeProfitPercentage;
+              
+              log(`📈 当前价格: ${currentPrice.toFixed(2)} USDC`);
+              log(`📊 涨幅: ${priceIncrease.toFixed(2)}% | 止盈目标: ${takeProfitPercentage}%`);
+              
+              if (shouldTakeProfit) {
+                log('🎉 检测到已达到止盈条件！');
+                log('🔄 将执行止盈并开始新一轮交易');
+                this.skipFirstOrder = false; // 允许新一轮买入
+                
+                // 立即执行止盈
+                await this.executeTakeProfit();
+                return;
+              } else {
+                log('⏳ 持仓未达到止盈条件，进入监控模式');
+                log('🚫 跳过买入阶段，仅监控止盈');
+                this.skipFirstOrder = true; // 跳过买入，只监控
+              }
+            } else {
+              log('⚠️  无法获取当前价格，默认进入监控模式');
+              this.skipFirstOrder = true;
+            }
+          } catch (priceError) {
+            log(`获取价格失败: ${priceError.message}，默认进入监控模式`);
+            this.skipFirstOrder = true;
+          }
+        } else {
+          log('⚠️  无法确定持仓均价，默认进入监控模式');
+          this.skipFirstOrder = true;
+        }
+      } else {
+        log('📦 无有效持仓，开始新一轮买入');
+        this.skipFirstOrder = false; // 允许买入
+      }
+      
+      // 记录最终决定的运行模式
+      if (this.skipFirstOrder) {
+        log('🎯 运行模式: 【监控模式】- 仅监控止盈，不执行新买入');
+      } else {
+        log('🛒 运行模式: 【买入模式】- 执行马丁格子买入策略');
+      }
+      
+    } catch (error) {
+      log(`运行模式判断失败: ${error.message}`, true);
+      // 出错时默认进入监控模式，更安全
+      this.skipFirstOrder = true;
+      log('⚠️  出错时默认采用监控模式');
+    }
   }
 }
 

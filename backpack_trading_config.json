@@ -19,7 +19,7 @@
         "cancelAllOrders": true,
         "restartAfterTakeProfit": true,
         "autoRestartNoFill": false,
-        "skipFirstOrderIfPositioned": true
+        "skipFirstOrderIfPositioned": false
     },
     "reconciliation": {
         "enabled": false,
