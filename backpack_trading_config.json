@@ -5,9 +5,9 @@
     },
     "trading": {
         "tradingCoin": "ETH",
-        "maxDropPercentage": 7,
+        "maxDropPercentage": 5,
         "totalAmount": 2000,
-        "orderCount": 8,
+        "orderCount": 6,
         "incrementPercentage": 50,
         "takeProfitPercentage": 2.0,
         "martingaleEnabled": false,
@@ -15,18 +15,18 @@
         "maxConsecutiveLosses": 5
     },
     "actions": {
-        "sellNonUsdcAssets": true,
+        "sellNonUsdcAssets": false,
         "cancelAllOrders": true,
         "restartAfterTakeProfit": true,
-        "autoRestartNoFill": true,
-        "skipFirstOrderIfPositioned": true
+        "autoRestartNoFill": false,
+        "skipFirstOrderIfPositioned": false
     },
     "reconciliation": {
-        "enabled": true,
-        "autoSyncOnStartup": true,
-        "forceSync": true,
-        "logDetailedReport": true,
-        "scheduledReconciliation": true,
+        "enabled": false,
+        "autoSyncOnStartup": false,
+        "forceSync": false,
+        "logDetailedReport": false,
+        "scheduledReconciliation": false,
         "scheduledIntervalMinutes": 60,
         "tolerances": {
             "BTC": 0.0001,
@@ -38,14 +38,15 @@
     "advanced": {
         "minOrderAmount": 10,
         "priceTickSize": 0.01,
-        "checkOrdersIntervalMinutes": 10,
-        "monitorIntervalSeconds": 15,
+        "checkOrdersIntervalMinutes": 5,
+        "monitorIntervalSeconds": 10,
         "sellNonUsdcMinValue": 10,
-        "noFillRestartMinutes": 1,
+        "noFillRestartMinutes": 3,
         "realTimePositionCheck": true,
         "positionDifferenceThreshold": 5,
         "positionDetectionThreshold": 0.001,
-        "allowManualAveragePrice": true
+        "allowManualAveragePrice": false,
+        "quickRestartAfterTakeProfit": true
     },
     "quantityPrecisions": {
         "BTC": 5,
@@ -69,13 +70,13 @@
         "url": "wss://ws.backpack.exchange",
         "options": {
             "reconnect": true,
-            "reconnectInterval": 5000,
-            "maxReconnectAttempts": 5,
-            "pingInterval": 60000,
-            "pongTimeout": 120000,
-            "subscriptionTimeout": 5000,
+            "reconnectInterval": 3000,
+            "maxReconnectAttempts": 10,
+            "pingInterval": 30000,
+            "pongTimeout": 60000,
+            "subscriptionTimeout": 3000,
             "messageQueueSize": 1000,
-            "messageTimeout": 30000
+            "messageTimeout": 15000
         }
     }
 } 
