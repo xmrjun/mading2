@@ -9,7 +9,7 @@
         "totalAmount": 2000,
         "orderCount": 8,
         "incrementPercentage": 50,
-        "takeProfitPercentage": 0.25,
+        "takeProfitPercentage": 2.0,
         "martingaleEnabled": false,
         "martingaleMultiplier": 2,
         "maxConsecutiveLosses": 5

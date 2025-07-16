@@ -8,6 +8,16 @@ const TimeUtils = require('./src/utils/timeUtils');
 let logger;
 
 /**
+ * 启动参数说明:
+ * 默认: 手动启动，清理现有订单，从零开始
+ * --restore-history 或 --with-history: 恢复历史订单和统计数据
+ * 
+ * 使用示例:
+ * node start_single.js                    // 从零开始 (推荐)
+ * node start_single.js --restore-history  // 恢复历史数据
+ */
+
+/**
  * 单策略启动函数
  */
 async function startSingle() {

@@ -464,6 +464,10 @@ class TradingApp {
       if (skipHistory) {
         log('🆕 手动启动模式：清理现有订单，从零开始');
         
+        // 🔑 重要：手动启动时重置止盈状态，防止立即触发
+        this.takeProfitTriggered = false;
+        log('✅ 已重置止盈状态，防止误触发');
+        
         // 先取消所有未成交订单，避免遗漏
         try {
           log('正在取消所有现有未成交订单...');
@@ -545,16 +549,22 @@ class TradingApp {
       }
       
       // 🔑 优先使用日志恢复统计（更可靠）
-      log('📋 尝试从本地日志恢复交易统计...');
-      const logRecoveryResult = await this.logBasedStats.recoverStatsFromLogs();
-      
-      if (logRecoveryResult.success && logRecoveryResult.recovered) {
-        log('✅ 从日志成功恢复统计数据');
-        log(`📊 恢复了 ${logRecoveryResult.tradeCount} 条交易记录`);
+      if (skipHistory) {
+        log('🆕 手动启动：跳过历史日志恢复，从当前状态开始');
+        // 重置统计数据，确保从零开始
+        this.tradeStats.reset();
+        this.orderManager.reset();
       } else {
-        log('📋 日志恢复结果：' + logRecoveryResult.message);
+        log('📋 尝试从本地日志恢复交易统计...');
+        const logRecoveryResult = await this.logBasedStats.recoverStatsFromLogs();
         
-        log('� 使用日志统计系统，不依赖API对账');
+        if (logRecoveryResult.success && logRecoveryResult.recovered) {
+          log('✅ 从日志成功恢复统计数据');
+          log(`📊 恢复了 ${logRecoveryResult.tradeCount} 条交易记录`);
+        } else {
+          log('📋 日志恢复结果：' + logRecoveryResult.message);
+          log('📊 使用日志统计系统，不依赖API对账');
+        }
       }
       
       return true;
