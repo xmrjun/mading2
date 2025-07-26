@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const { defaultLogger } = require('../utils/logger');
+const crypto = require('crypto');
 
 /**
  * WebSocket管理器类 - 负责处理与交易所的WebSocket连接
@@ -26,6 +27,16 @@ class WebSocketManager {
     
     // 修复onPriceUpdate回调 - 确保正确设置
     this.onPriceUpdate = options.onPriceUpdate || (() => {});
+    
+    // 🔑 订单状态更新回调
+    this.onOrderUpdate = options.onOrderUpdate || (() => {});
+    
+    // 🔑 余额更新回调
+    this.onBalanceUpdate = options.onBalanceUpdate || (() => {});
+    
+    // 🔑 认证信息（用于私有WebSocket订阅）
+    this.privateKey = options.config?.api?.privateKey;
+    this.publicKey = options.config?.api?.publicKey;
     
     // 验证和记录回调函数设置情况
     if (typeof this.onPriceUpdate === 'function') {
@@ -82,6 +93,13 @@ class WebSocketManager {
         // 订阅行情频道
         this.subscribeTicker(symbol);
         
+        // 🔑 订阅私有订单更新（如果有API密钥）
+        if (this.privateKey && this.publicKey) {
+          setTimeout(() => {
+            this.subscribeOrderUpdates();
+          }, 1000); // 延迟1秒确保连接稳定
+        }
+        
         // 设置心跳
         this.setupHeartbeat();
       });
@@ -120,8 +138,22 @@ class WebSocketManager {
             return;
           }
           
+          // 🔑 处理订单状态更新
+          if (message.channel === 'orderUpdate' || 
+              message.stream === 'orderUpdate' || 
+              message.e === 'executionReport' ||
+              (message.data && message.data.e === 'executionReport')) {
+            this.processOrderUpdate(message);
+          }
+          // 🔑 处理余额更新
+          else if (message.channel === 'account' || 
+                   message.stream === 'account' ||
+                   message.e === 'outboundAccountPosition' ||
+                   (message.data && message.data.e === 'outboundAccountPosition')) {
+            this.processBalanceUpdate(message);
+          }
           // 处理价格数据 - 尝试多种可能的格式
-          if (
+          else if (
             (message.channel === 'ticker' && message.data) ||
             (message.e === 'ticker') ||
             (message.type === 'ticker') ||
@@ -170,6 +202,99 @@ class WebSocketManager {
       });
     } catch (error) {
       this.logger.log(`建立WebSocket连接失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 🔑 处理订单状态更新
+   * @param {Object} message - 订单更新消息
+   */
+  processOrderUpdate(message) {
+    try {
+      let orderData = null;
+      
+      // 解析不同格式的订单数据
+      if (message.data && message.data.e === 'executionReport') {
+        orderData = message.data;
+      } else if (message.e === 'executionReport') {
+        orderData = message;
+      } else if (message.data) {
+        orderData = message.data;
+      } else {
+        orderData = message;
+      }
+      
+      if (orderData) {
+        // 记录重要的订单状态变化
+        const orderId = orderData.i || orderData.orderId || orderData.id;
+        const status = orderData.X || orderData.status;
+        const side = orderData.S || orderData.side;
+        const symbol = orderData.s || orderData.symbol;
+        const price = orderData.p || orderData.price;
+        const quantity = orderData.q || orderData.quantity;
+        const filledQuantity = orderData.z || orderData.filledQuantity || orderData.executedQty;
+        
+        // 只记录重要状态变化
+        if (status === 'FILLED' || status === 'PARTIALLY_FILLED' || status === 'CANCELED') {
+          this.logger.log(`🔄 订单状态更新: ${orderId} ${side} ${status} ${symbol} 价格:${price} 数量:${quantity} 成交:${filledQuantity}`);
+        }
+        
+        // 调用外部回调处理订单更新
+        if (typeof this.onOrderUpdate === 'function') {
+          this.onOrderUpdate({
+            orderId,
+            status,
+            side,
+            symbol,
+            price: parseFloat(price) || 0,
+            quantity: parseFloat(quantity) || 0,
+            filledQuantity: parseFloat(filledQuantity) || 0,
+            rawData: orderData
+          });
+        }
+      }
+    } catch (error) {
+      this.logger.log(`处理订单更新失败: ${error.message}`, true);
+    }
+  }
+  
+  /**
+   * 🔑 处理余额更新
+   */
+  processBalanceUpdate(message) {
+    try {
+      let balanceData = null;
+      
+      // 解析不同格式的余额数据
+      if (message.data && message.data.e === 'outboundAccountPosition') {
+        balanceData = message.data;
+      } else if (message.e === 'outboundAccountPosition') {
+        balanceData = message;
+      } else if (message.data) {
+        balanceData = message.data;
+      } else {
+        balanceData = message;
+      }
+      
+      if (balanceData && balanceData.B) {
+        // 处理余额数组
+        const balances = {};
+        for (const balance of balanceData.B) {
+          if (balance.a && (balance.f !== undefined || balance.l !== undefined)) {
+            balances[balance.a] = {
+              available: parseFloat(balance.f) || 0,
+              locked: parseFloat(balance.l) || 0
+            };
+          }
+        }
+        
+        // 调用外部回调处理余额更新
+        if (typeof this.onBalanceUpdate === 'function' && Object.keys(balances).length > 0) {
+          this.onBalanceUpdate(balances);
+        }
+      }
+    } catch (error) {
+      this.logger.log(`处理余额更新失败: ${error.message}`, true);
     }
   }
   
@@ -249,6 +374,74 @@ class WebSocketManager {
       }
     } catch (error) {
       this.logger.log(`处理价格数据出错: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 🔑 创建认证签名用于私有WebSocket订阅
+   * @param {string} timestamp - 时间戳
+   * @param {string} instruction - 指令字符串
+   * @returns {string} 签名
+   */
+  createSignature(timestamp, instruction) {
+    if (!this.privateKey) {
+      throw new Error('私钥未设置，无法创建认证签名');
+    }
+    
+    try {
+      // 解码私钥
+      const rawPrivate = Buffer.from(this.privateKey, "base64").subarray(0, 32);
+      const prefixPrivateEd25519 = Buffer.from("302e020100300506032b657004220420", "hex");
+      const der = Buffer.concat([prefixPrivateEd25519, rawPrivate]);
+      const privateKeyObj = crypto.createPrivateKey({ key: der, format: "der", type: "pkcs8" });
+      
+      // 创建签名数据
+      const signData = `instruction=${instruction}&timestamp=${timestamp}`;
+      const signature = crypto.sign(null, Buffer.from(signData), privateKeyObj);
+      
+      return Buffer.from(signature).toString('base64');
+    } catch (error) {
+      this.logger.log(`创建签名失败: ${error.message}`, true);
+      throw error;
+    }
+  }
+  
+  /**
+   * 🔑 订阅私有订单更新流
+   */
+  subscribeOrderUpdates() {
+    if (!this.connectionActive || !this.ws) {
+      this.logger.log('WebSocket未连接，无法订阅订单更新');
+      return false;
+    }
+    
+    if (!this.privateKey || !this.publicKey) {
+      this.logger.log('缺少API密钥，无法订阅私有订单更新');
+      return false;
+    }
+    
+    try {
+      const timestamp = Date.now().toString();
+      const instruction = 'subscribe';
+      const signature = this.createSignature(timestamp, instruction);
+      
+      const subscribeMsg = {
+        method: "SUBSCRIBE",
+        params: ["orderUpdate"],
+        id: Date.now(),
+        signature: signature,
+        timestamp: timestamp,
+        instruction: instruction,
+        publicKey: this.publicKey
+      };
+      
+      this.ws.send(JSON.stringify(subscribeMsg));
+      this.logger.log('已订阅私有订单更新流');
+      
+      return true;
+    } catch (error) {
+      this.logger.log(`订阅订单更新失败: ${error.message}`, true);
+      return false;
     }
   }
   

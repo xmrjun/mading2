@@ -18,6 +18,7 @@ class PriceMonitor {
     this.config = options.config;
     this.onPriceUpdate = options.onPriceUpdate || (() => {});
     this.onPriceData = options.onPriceData || (() => {});
+    this.onOrderUpdate = options.onOrderUpdate || (() => {}); // 🔑 添加订单更新回调
     this.logger = options.logger;
     
     // 初始化WebSocket管理器
@@ -26,6 +27,7 @@ class PriceMonitor {
       config: this.config,
       onMessage: this.handleMessage.bind(this),
       onPriceUpdate: this.handleWebSocketPriceUpdate.bind(this),
+      onOrderUpdate: this.handleOrderUpdate.bind(this), // 🔑 添加订单更新回调
       logger: this.logger
     });
     
@@ -83,6 +85,7 @@ class PriceMonitor {
       config: this.config,
       onMessage: this.handleMessage.bind(this),
       onPriceUpdate: this.handleWebSocketPriceUpdate.bind(this),
+      onOrderUpdate: this.handleOrderUpdate.bind(this), // 🔑 添加订单更新回调
       logger: this.logger
     });
     
@@ -409,6 +412,24 @@ class PriceMonitor {
     return !isNaN(price) && Number.isFinite(price) && price > 0;
   }
 
+  /**
+   * 🔑 处理订单状态更新回调
+   * @param {Object} orderUpdate - 订单更新数据
+   */
+  handleOrderUpdate(orderUpdate) {
+    try {
+      // 记录重要的订单状态变化
+      this.logger?.log(`🔄 收到订单状态更新: ${orderUpdate.orderId} ${orderUpdate.status}`);
+      
+      // 将订单更新传递给外部处理函数（主应用）
+      if (typeof this.onOrderUpdate === 'function') {
+        this.onOrderUpdate(orderUpdate);
+      }
+    } catch (error) {
+      this.logger?.log(`处理订单更新回调失败: ${error.message}`, true);
+    }
+  }
+  
   /**
    * 从API获取价格
    */

@@ -1,0 +1,28 @@
+# 敏感配置文件 - 包含API密钥
+backpack_trading_config.json
+
+# 日志文件
+logs/
+*.log
+
+# Node modules
+node_modules/
+
+# 环境变量文件
+.env
+.env.local
+.env.production
+
+# IDE 文件
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp

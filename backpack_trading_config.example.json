@@ -1,0 +1,71 @@
+{
+    "api": {
+        "privateKey": "YOUR_PRIVATE_KEY_HERE",
+        "publicKey": "YOUR_PUBLIC_KEY_HERE"
+    },
+    "trading": {
+        "tradingCoin": "SOL",
+        "maxDropPercentage": 3.0,
+        "totalAmount": 1000,
+        "orderCount": 5,
+        "incrementPercentage": 25,
+        "takeProfitPercentage": 0.25,
+        "martingaleEnabled": false,
+        "martingaleMultiplier": 1.0,
+        "maxConsecutiveLosses": 1
+    },
+    "actions": {
+        "sellNonUsdcAssets": true,
+        "cancelAllOrders": true,
+        "restartAfterTakeProfit": true,
+        "autoRestartNoFill": true,
+        "skipFirstOrderIfPositioned": false
+    },
+    "advanced": {
+        "minOrderAmount": 10,
+        "priceTickSize": 1.0,
+        "checkOrdersIntervalMinutes": 2,
+        "monitorIntervalSeconds": 15,
+        "sellNonUsdcMinValue": 10,
+        "noFillRestartMinutes": 3,
+        "realTimePositionCheck": true,
+        "positionDifferenceThreshold": 5,
+        "positionDetectionThreshold": 0.001,
+        "minPositionThreshold": 0.05,
+        "allowManualAveragePrice": false,
+        "quickRestartAfterTakeProfit": true,
+        "maxPriceDifference": 0.3,
+        "minPositionValueThreshold": 50
+    },
+    "quantityPrecisions": {
+        "BTC": 5,
+        "ETH": 4,
+        "SOL": 2,
+        "DEFAULT": 2
+    },
+    "pricePrecisions": {
+        "BTC": 0,
+        "ETH": 2,
+        "SOL": 2,
+        "DEFAULT": 2
+    },
+    "minQuantities": {
+        "BTC": 0.00001,
+        "ETH": 0.001,
+        "SOL": 0.01,
+        "DEFAULT": 0.1
+    },
+    "websocket": {
+        "url": "wss://ws.backpack.exchange",
+        "options": {
+            "reconnect": true,
+            "reconnectInterval": 3000,
+            "maxReconnectAttempts": 10,
+            "pingInterval": 30000,
+            "pongTimeout": 60000,
+            "subscriptionTimeout": 3000,
+            "messageQueueSize": 1000,
+            "messageTimeout": 15000
+        }
+    }
+}

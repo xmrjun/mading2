@@ -12,12 +12,9 @@
   "scripts": {
     "start": "node scripts/start.js",
     "stop": "node scripts/stop.js",
-    "dev": "node src/index.js",
+    "dev": "node start_single.js",
     "single": "node start_single.js",
-    "dual": "node start_dual.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test-reconciliation": "node test_reconciliation.js",
-    "test-reconciliation-auto": "node test_reconciliation.js --auto"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",

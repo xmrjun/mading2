@@ -20,7 +20,15 @@ class BackpackService {
     this.privateKey = config.api.privateKey;
     this.publicKey = config.api.publicKey;
     this.tradingCoin = config.trading?.tradingCoin || 'BTC';
-    this.symbol = `${this.tradingCoin}_USDC`; 
+    this.symbol = `${this.tradingCoin}_USDC`;
+    
+    // 🔑 限流状态管理
+    this.rateLimitStatus = {
+      isLimited: false,
+      lastLimitTime: null,
+      limitCount: 0,
+      cooldownMs: 60000 // 1分钟冷却期
+    }; 
     
     // 初始化官方BackpackClient
     try {
@@ -94,16 +102,43 @@ class BackpackService {
         }
         
         if (attempt < maxRetries) {
-          // 对于429错误（频率限制），使用更长的延迟
+          // 🔑 增强限流检测和延迟机制
           let actualDelay = retryDelay;
-          if (error.response && error.response.status === 429) {
-            actualDelay = Math.min(retryDelay * attempt * 2, 30000); // 最大30秒
+          
+          // 检测多种限流错误格式
+          const isRateLimit = (error.response && error.response.status === 429) ||
+                             error.message.includes('rate limit') ||
+                             error.message.includes('Rate Limit') ||
+                             error.message.includes('exceeded') ||
+                             error.message.includes('429');
+          
+          if (isRateLimit) {
+            // 🔑 更新限流状态
+            this.rateLimitStatus.isLimited = true;
+            this.rateLimitStatus.lastLimitTime = Date.now();
+            this.rateLimitStatus.limitCount++;
+            
+            // 🚫 限流错误：使用指数退避策略
+            actualDelay = Math.min(retryDelay * Math.pow(3, attempt - 1), 120000); // 3s, 9s, 27s, 81s, 最大2分钟
             const logMethod = this.logger?.log || console.log;
-            logMethod(`遇到频率限制，${actualDelay/1000}秒后重试...`);
+            logMethod(`🚫 API限流检测到 (第${this.rateLimitStatus.limitCount}次)，采用指数退避延迟 ${actualDelay/1000} 秒后重试...`);
+            
+            // 特别严重的限流：额外延迟
+            if (attempt >= 3) {
+              actualDelay += 30000; // 额外30秒
+              logMethod(`⚠️  连续限流，额外延迟30秒...`);
+            }
+            
+            // 严重限流时：延长冷却期
+            if (this.rateLimitStatus.limitCount >= 5) {
+              this.rateLimitStatus.cooldownMs = 300000; // 5分钟冷却期
+              logMethod(`🚨 严重限流，延长冷却期到5分钟`);
+            }
           } else {
             const logMethod = this.logger?.log || console.log;
             logMethod(`${actualDelay/1000}秒后重试...`);
           }
+          
           await new Promise(resolve => setTimeout(resolve, actualDelay));
         }
       }
@@ -162,11 +197,48 @@ class BackpackService {
    */
   async getOpenOrders(symbol = this.symbol) {
     try {
-      return await this.executeWithRetry(() => 
+      const result = await this.executeWithRetry(() => 
         this.client.GetOpenOrders({ symbol })
       );
+      
+      this.logger?.log(`获取到${symbol}未成交订单: ${Array.isArray(result) ? result.length : 0}个`);
+      return result || [];
     } catch (error) {
       this.logger?.log(`获取未成交订单失败: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * 🔑 批量获取订单状态（更高效的方法）
+   * @param {Array<string>} orderIds - 订单ID数组
+   * @returns {Promise<Array>} 订单状态数组
+   */
+  async batchGetOrderStatus(orderIds) {
+    try {
+      // 先获取所有未成交订单
+      const openOrders = await this.getOpenOrders();
+      const openOrderIds = new Set(openOrders.map(o => String(o.orderId || o.id)));
+      
+      const results = [];
+      
+      for (const orderId of orderIds) {
+        const orderIdStr = String(orderId);
+        
+        if (openOrderIds.has(orderIdStr)) {
+          // 订单还在未成交列表中
+          results.push({ orderId: orderIdStr, status: 'Open' });
+        } else {
+          // 订单不在未成交列表中，可能已成交或取消
+          results.push({ orderId: orderIdStr, status: 'Unknown' });
+        }
+      }
+      
+      this.logger?.log(`批量检查${orderIds.length}个订单: ${results.filter(r => r.status === 'Open').length}个未成交, ${results.filter(r => r.status === 'Unknown').length}个需进一步查询`);
+      
+      return results;
+    } catch (error) {
+      this.logger?.log(`批量获取订单状态失败: ${error.message}`, true);
       throw error;
     }
   }
@@ -178,10 +250,25 @@ class BackpackService {
    */
   async getOrderDetails(orderId) {
     try {
-      return await this.executeWithRetry(() => 
-        this.client.GetOrder({ orderId })
+      // 🔑 修复参数格式 - 确保orderId是字符串
+      const orderIdStr = String(orderId);
+      
+      this.logger?.log(`查询订单详情: ${orderIdStr}`);
+      
+      const result = await this.executeWithRetry(() => 
+        this.client.GetOrder({ orderId: orderIdStr })
       );
+      
+      this.logger?.log(`订单${orderIdStr}状态: ${result?.status || '未知'}`);
+      return result;
     } catch (error) {
+      // 🔑 增强错误处理 - 400错误可能是订单不存在或已删除
+      if (error.message.includes('400')) {
+        this.logger?.log(`订单${orderId}查询失败(400) - 可能是订单不存在或格式错误`);
+        // 对于400错误，返回null而不是抛出异常
+        return null;
+      }
+      
       this.logger?.log(`获取订单详情失败: ${error.message}`);
       throw error;
     }
@@ -388,6 +475,28 @@ class BackpackService {
       );
     } catch (error) {
       this.logger?.log(`获取订单历史记录失败: ${error.message}`, true);
+      throw error;
+    }
+  }
+  
+  /**
+   * 🔑 获取成交历史（实际的买卖成交记录）
+   * @param {string} symbol - 交易对符号
+   * @param {number} limit - 限制数量
+   * @returns {Promise<Array>} 成交历史数组
+   */
+  async getFillHistory(symbol = this.symbol, limit = 200) {
+    try {
+      this.logger?.log(`获取${symbol}成交历史记录...`);
+      
+      return await this.executeWithRetry(() => 
+        this.client.FillHistory({ 
+          symbol, 
+          limit
+        })
+      );
+    } catch (error) {
+      this.logger?.log(`获取成交历史失败: ${error.message}`, true);
       throw error;
     }
   }

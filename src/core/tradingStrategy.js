@@ -14,6 +14,16 @@ class TradingStrategy {
   constructor(logger, config = {}) {
     this.logger = logger;
     this.config = config;
+    
+    // 马丁格尔策略状态
+    this.strategyState = {
+      active: false,
+      filledOrders: 0,
+      totalOrders: config.trading?.orderCount || 10,
+      averagePrice: 0,
+      totalQuantity: 0,
+      lastTradeTime: 0
+    };
   }
   
   /**
@@ -36,15 +46,87 @@ class TradingStrategy {
     incrementPercentage,
     minOrderAmount,
     tradingCoin,
-    symbol
+    symbol,
+    positionInfo = null
   ) {
     const orders = [];
     
-    // 计算价格区间
-    const lowestPrice = currentPrice * (1 - maxDropPercentage / 100);
-    // 🔑 修复：确保第一个订单不会按市场价立即成交
-    // 将价格区间均匀分布，但第一个订单价格低于当前价格
-    const priceStep = (currentPrice - lowestPrice) / orderCount; // 去掉 -1
+    // 🔑 检查是否为补仓模式
+    if (positionInfo && positionInfo.quantity > 0) {
+      log(`🔄 补仓模式：已有 ${positionInfo.filledOrders} 单成交，创建剩余 ${orderCount - positionInfo.filledOrders} 个买单`);
+      log(`📊 当前持仓：${positionInfo.quantity.toFixed(6)} ${tradingCoin} @ ${positionInfo.averagePrice.toFixed(2)} USDC`);
+      
+      // 调整订单数量和起始价格，基于持仓均价而非当前价格
+      const remainingOrders = Math.max(0, orderCount - positionInfo.filledOrders);
+      if (remainingOrders === 0) {
+        log('✅ 所有计划订单已成交，无需创建新买单');
+        return orders;
+      }
+      
+      // 使用持仓均价作为基准，创建更低价位的买单
+      const basePrice = positionInfo.averagePrice;
+      log(`📈 基准价格（持仓均价）: ${basePrice.toFixed(2)} USDC`);
+      
+      // 从已成交订单的下一个价位开始创建
+      const startOrderIndex = positionInfo.filledOrders;
+      orderCount = remainingOrders;
+      
+      // 重新计算价格分布，基于持仓均价
+      const totalDropFromAverage = 3.0; // 从均价开始下跌3%
+      const lowestPrice = basePrice * (1 - totalDropFromAverage / 100);
+      
+      for (let i = 0; i < remainingOrders; i++) {
+        const actualIndex = startOrderIndex + i;
+        const priceStep = (basePrice - lowestPrice) / orderCount;
+        let rawPrice = basePrice - (priceStep * (i + 1));
+        
+        // 调整价格到交易所接受的格式
+        const price = Formatter.adjustPriceToTickSize(rawPrice, tradingCoin, this.config);
+        
+        // 计算递增订单金额
+        const r = 1 + incrementPercentage / 100;
+        const baseAmount = totalAmount * (r - 1) / (Math.pow(r, orderCount) - 1);
+        const orderAmount = baseAmount * Math.pow(r, i);
+        
+        // 计算数量并调整精度
+        const quantity = Formatter.adjustQuantityToStepSize(orderAmount / price, tradingCoin, this.config);
+        const actualAmount = price * quantity;
+        
+        if (actualAmount >= minOrderAmount) {
+          const orderData = {
+            symbol,
+            price,
+            quantity,
+            amount: actualAmount,
+            side: 'Bid',
+            orderType: 'Limit',
+            timeInForce: 'GTC'
+          };
+          
+          const order = new Order(orderData);
+          orders.push(order);
+          
+          log(`📋 补仓订单${actualIndex + 1}: ${quantity.toFixed(6)} ${tradingCoin} @ ${price.toFixed(2)} USDC`);
+        }
+      }
+      
+      log(`✅ 补仓模式完成，创建了 ${orders.length} 个剩余买单`);
+      return orders;
+    }
+    
+    // 🔑 全新策略模式：第一个订单0.2%，后面订单在总3%区间内均匀分布
+    const firstOrderDropPercentage = 0.2; // 第一个订单下跌0.2%
+    const totalDropPercentage = 3.0; // 总的价格区间3%
+    
+    // 第一个订单价格
+    const firstOrderPrice = currentPrice * (1 - firstOrderDropPercentage / 100);
+    
+    // 最低价格（总跌幅3%）
+    const lowestPrice = currentPrice * (1 - totalDropPercentage / 100);
+    
+    // 后面4个订单在剩余区间内的价格步长
+    const remainingOrders = orderCount - 1; // 剩余订单数量
+    const priceStep = (firstOrderPrice - lowestPrice) / remainingOrders;
     
     // 计算基础订单金额（使用等比数列求和公式）
     // 总金额 = 基础金额 * (1 + r + r^2 + ... + r^(n-1))
@@ -68,9 +150,17 @@ class TradingStrategy {
     
     // 创建订单
     for (let i = 0; i < orderCount; i++) {
-      // 🔑 修复：确保所有订单价格都低于当前市场价
-      // 第一个订单 (i=0) 价格现在是 currentPrice - priceStep，而不是 currentPrice
-      const rawPrice = currentPrice - (priceStep * (i + 1)); // 加1确保第一个订单也低于市场价
+      let rawPrice;
+      
+      if (i === 0) {
+        // 第一个订单：当前价格下跌0.2%
+        rawPrice = firstOrderPrice;
+      } else {
+        // 后面的订单：在剩余2.8%区间内正确分布
+        const remainingRange = firstOrderPrice - lowestPrice; // 2.8%的价格区间
+        rawPrice = firstOrderPrice - (remainingRange * i / (orderCount - 1));
+      }
+      
       // 调整价格到交易所接受的格式
       const price = Formatter.adjustPriceToTickSize(rawPrice, tradingCoin, this.config);
       
@@ -259,6 +349,132 @@ class TradingStrategy {
     
     // 计算进度百分比，限制在0-100之间
     return Math.min(100, Math.max(0, (priceIncrease / takeProfitPercentage * 100)));
+  }
+  
+  /**
+   * 判断是否应该执行交易
+   * @param {Object} params - 交易参数
+   * @returns {Object|false} 交易信号或false
+   */
+  shouldExecuteTrade(params) {
+    const { currentPrice, symbol, forceStart } = params;
+    
+    if (!currentPrice || currentPrice <= 0) {
+      return false;
+    }
+    
+    const now = Date.now();
+    
+    // 🔑 如果是强制开始新周期（止盈后），立即开始
+    if (forceStart) {
+      this.logger?.log(`🔥 强制开始新交易周期 (止盈后重启)`);
+      this.strategyState.active = true;
+      this.strategyState.lastTradeTime = now;
+      
+      const config = this.config.trading || {};
+      const orderAmount = (config.totalAmount || 100) / (config.orderCount || 10);
+      
+      return {
+        action: 'restart_after_takeprofit',
+        side: 'BUY',
+        price: currentPrice * 0.998, // 略低于市价买入
+        quantity: (orderAmount / currentPrice).toFixed(2),
+        amount: orderAmount,
+        symbol: symbol
+      };
+    }
+    
+    // 检查是否已有活跃策略
+    if (this.strategyState.active && this.strategyState.filledOrders >= this.strategyState.totalOrders) {
+      return false; // 已达到最大订单数
+    }
+    
+    // 检查交易频率限制（避免过于频繁）
+    if (now - this.strategyState.lastTradeTime < 10000) { // 10秒限制
+      return false;
+    }
+    
+    // 如果没有活跃策略，可以开始新的马丁格尔策略
+    if (!this.strategyState.active) {
+      const config = this.config.trading || {};
+      const orderAmount = (config.totalAmount || 100) / (config.orderCount || 10);
+      
+      this.strategyState.active = true;
+      this.strategyState.lastTradeTime = now;
+      
+      return {
+        action: 'start_martingale',
+        side: 'BUY',
+        price: currentPrice * 0.998, // 略低于市价买入
+        quantity: (orderAmount / currentPrice).toFixed(2),
+        amount: orderAmount,
+        symbol: symbol
+      };
+    }
+    
+    return false;
+  }
+  
+  /**
+   * 判断是否应该取消订单
+   * @param {Object} order - 订单对象
+   * @param {Object} context - 上下文信息
+   * @returns {boolean} 是否应该取消
+   */
+  shouldCancelOrder(order, context) {
+    const { currentPrice, timeElapsed } = context;
+    
+    if (!order || !currentPrice || currentPrice <= 0) {
+      return false;
+    }
+    
+    // 订单超时取消（30分钟）
+    if (timeElapsed > 1800000) {
+      this.logger?.log(`订单${order.orderId}超时，准备取消`);
+      return true;
+    }
+    
+    // 价格偏离太大时取消（超过5%）
+    const orderPrice = parseFloat(order.price);
+    if (orderPrice > 0) {
+      const priceDeviation = Math.abs((currentPrice - orderPrice) / orderPrice);
+      if (priceDeviation > 0.05) {
+        this.logger?.log(`订单${order.orderId}价格偏离过大(${(priceDeviation*100).toFixed(2)}%)，准备取消`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
+  
+  /**
+   * 更新策略状态
+   * @param {Object} update - 状态更新
+   */
+  updateStrategyState(update) {
+    Object.assign(this.strategyState, update);
+  }
+  
+  /**
+   * 重置策略状态
+   */
+  resetStrategyState() {
+    this.strategyState = {
+      active: false,
+      filledOrders: 0,
+      totalOrders: this.config.trading?.orderCount || 10,
+      averagePrice: 0,
+      totalQuantity: 0,
+      lastTradeTime: 0
+    };
+  }
+  
+  /**
+   * 获取策略状态
+   * @returns {Object} 当前策略状态
+   */
+  getStrategyState() {
+    return { ...this.strategyState };
   }
 }
 
