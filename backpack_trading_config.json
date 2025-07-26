@@ -1,52 +1,41 @@
 {
     "api": {
-        "privateKey": "---------------------------",
-        "publicKey": "----------------------------"
+        "privateKey": "YOUR_PRIVATE_KEY_HERE",
+        "publicKey": "YOUR_PUBLIC_KEY_HERE"
     },
     "trading": {
-        "tradingCoin": "ETH",
-        "maxDropPercentage": 5,
-        "totalAmount": 2000,
-        "orderCount": 6,
-        "incrementPercentage": 50,
-        "takeProfitPercentage": 2.0,
+        "tradingCoin": "SOL",
+        "maxDropPercentage": 3.0,
+        "totalAmount": 1000,
+        "orderCount": 5,
+        "incrementPercentage": 25,
+        "takeProfitPercentage": 0.25,
         "martingaleEnabled": false,
-        "martingaleMultiplier": 2,
-        "maxConsecutiveLosses": 5
+        "martingaleMultiplier": 1.0,
+        "maxConsecutiveLosses": 1
     },
     "actions": {
-        "sellNonUsdcAssets": false,
+        "sellNonUsdcAssets": true,
         "cancelAllOrders": true,
-        "restartAfterTakeProfit": false,
-        "autoRestartNoFill": false,
+        "restartAfterTakeProfit": true,
+        "autoRestartNoFill": true,
         "skipFirstOrderIfPositioned": false
-    },
-    "reconciliation": {
-        "enabled": false,
-        "autoSyncOnStartup": false,
-        "forceSync": false,
-        "logDetailedReport": false,
-        "scheduledReconciliation": false,
-        "scheduledIntervalMinutes": 60,
-        "tolerances": {
-            "BTC": 0.0001,
-            "ETH": 0.001,
-            "SOL": 0.01,
-            "DEFAULT": 0.0001
-        }
     },
     "advanced": {
         "minOrderAmount": 10,
-        "priceTickSize": 0.01,
-        "checkOrdersIntervalMinutes": 5,
-        "monitorIntervalSeconds": 10,
+        "priceTickSize": 1.0,
+        "checkOrdersIntervalMinutes": 2,
+        "monitorIntervalSeconds": 15,
         "sellNonUsdcMinValue": 10,
         "noFillRestartMinutes": 3,
         "realTimePositionCheck": true,
         "positionDifferenceThreshold": 5,
         "positionDetectionThreshold": 0.001,
+        "minPositionThreshold": 0.05,
         "allowManualAveragePrice": false,
-        "quickRestartAfterTakeProfit": true
+        "quickRestartAfterTakeProfit": true,
+        "maxPriceDifference": 0.3,
+        "minPositionValueThreshold": 50
     },
     "quantityPrecisions": {
         "BTC": 5,
